@@ -117,7 +117,7 @@ for j = fref_ind_f : -1 : 2
         apply_warp('mesh',img_mov,mask_ref_srs_vtk,mask_init_reslice_vtk,warp_str_back,[],[]);
 end
 
-% Proparate the reference segmentation to each of the other images in
+% Propagate the reference segmentation to each of the other images in
 % series using the masks generated above. This loop is performed at full
 % resolution.
 for j = 1 : length(f)
