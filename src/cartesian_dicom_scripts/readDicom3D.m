@@ -38,7 +38,7 @@ while ((TagA~=Data_TagA) || (TagB~=Data_TagB)) && (LoopCounter<200)
     
     TagA    = fread(fid,1,'ushort');
     TagB    = fread(fid,1,'ushort');
-    CODE    = char(fread(fid,2,'char'))';
+    CODE    = char(fread(fid,2,'char'));
     N       = fread(fid,1,'ushort');
     
 %    LoopCounter, CODE
@@ -58,7 +58,7 @@ while ((TagA~=Data_TagA) || (TagB~=Data_TagB)) && (LoopCounter<200)
         
     case hex2dec('0028')
         if TagB==hex2dec('0008')
-            tmpstr      = char(fread(fid,N,'char')');
+            tmpstr      = char(fread(fid,N,'char'));
             x.NumVolumes= sscanf(tmpstr,'%d');
         elseif TagB==hex2dec('0010')
             x.height  = fread(fid,1,'ushort');  % # of rows

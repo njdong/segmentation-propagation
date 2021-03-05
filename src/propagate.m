@@ -80,7 +80,7 @@ for j =  fref_ind_f : length(f) - 1
         greedy_call(img_fix,img_mov,[],regout_affine,regout_deform,regout_deform_inv,mask_init);
 
         warp_str_forward = [warp_str_forward ' ' regout_affine ',-1 ' regout_deform_inv ' '];
-        apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_forward,[],[]);
+        // apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_forward,[],[]);
         apply_warp('label',img_mov,mask_ref_srs,mask_init_reslice,warp_str_forward,[],[]);
         apply_warp('mesh',img_mov,mask_ref_srs_vtk,mask_init_reslice_vtk,warp_str_forward,[],[]);
 end
@@ -112,7 +112,7 @@ for j = fref_ind_f : -1 : 2
         greedy_call(img_fix,img_mov,[],regout_affine,regout_deform,regout_deform_inv,mask_init);
 
         warp_str_back = [warp_str_back ' ' regout_affine ',-1 ' regout_deform_inv ' '];
-        apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_back,[],[]);
+        // apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_back,[],[]);
         apply_warp('label',img_mov,mask_ref_srs,mask_init_reslice,warp_str_back,[],[]);
         apply_warp('mesh',img_mov,mask_ref_srs_vtk,mask_init_reslice_vtk,warp_str_back,[],[]);
 end
