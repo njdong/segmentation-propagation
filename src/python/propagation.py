@@ -37,8 +37,14 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     # directory storing temporary files
     tmpdir = os.path.join(outdir, "tmp")
 
+    # performance logger
+    perflog = {}
+    timepoint = time.time()
+    
     # Use the  reader to create a Dicom4D Image
     CartesianDicom = Dicom4D(fndcm)
+
+    perflog['Dicom Loading'] =  time.time() - timepoint
 
     # Process reference segmentation
     # - Dilate the reference segmentation (mask)
@@ -68,6 +74,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     # Export 3D Frames
     # CartesianDicom.Export4D(os.path.join(outdir, 'img4D.nii.gz'))
     # Parallelizable
+
+    timepoint = time.time()
     
     for i in framenums:
         fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
@@ -77,7 +85,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         cmd = '/usr/local/bin/c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
         print(cmd)
         os.system(cmd)
-
+    
+    perflog['Export 3D Frames'] = time.time() - timepoint
 
 
     # Preserving data
@@ -96,7 +105,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     print('Propagating forward')
     print('---------------------------------')
 
-    
+    timepoint = time.time()
 
     for i in range(ref_ind, len(framenums) - 1):
         fCrnt = framenums[i]
@@ -123,6 +132,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             mask_ref_srs = fn_mask_ref_srs,
             mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
         
+    perflog['Forward Propagation'] = time.time() - timepoint
+    timepoint = time.time()
 
     # Propagate Backward
     print('---------------------------------')
@@ -156,6 +167,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             mask_ref_srs = fn_mask_ref_srs,
             mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
     
+    perflog['Backward Propagation'] = time.time() - timepoint
+    timepoint = time.time()
     # Propagate in Full Resolution
     
     print('---------------------------------')
@@ -191,6 +204,10 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
                 affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                 affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
 
+        print("affine_warps: ", affine_warps)
+        print("affine_warps_pts: ", affine_warps_pts)
+
+        
         # full resolution mask for this frame
         mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
         mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
@@ -208,6 +225,9 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         fn_regout_deform_inv = f'{tmpdir}/warp_{fref}_to_{fCrnt}_inv.nii.gz'
 
         # run registration and apply warp
+        timepoint1 = time.time()
+
+        
         print('Running Full Res Registration...')
         greedy_call(
             img_fix = fn_img_fix,
@@ -217,6 +237,9 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             regout_deform_inv = fn_regout_deform_inv,
             mask_fix = mask_fix
         )
+        perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
+        timepoint1 = time.time()
+
         print('Applying warp to segmentation...')
         apply_warp(
             image_type = 'label',
@@ -226,20 +249,29 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             reg_affine = affine_warps,
             reg_deform = fn_regout_deform
         )
+        perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
+        timepoint1 = time.time()
+
         print('Applying warp to mesh...')
         mesh_warps = affine_warps_pts + fn_regout_deform_inv
         apply_warp(
             image_type = 'mesh',
             img_fix = fn_img_fix,
             img_mov = fn_mask_ref_vtk,
-            img_reslice = fn_seg_reslice,
+            img_reslice = fn_seg_reslice_vtk,
             reg_affine = mesh_warps
         )
+        perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
         # restore cell data 
         print('Restoring poly data to mesh...')
-        vtk_replace_stripes(fn_mask_ref_vtk, polyData)
+        vtk_replace_stripes(fn_seg_reslice_vtk, polyData)
+        
 
+    perflog['Full Res Propagation'] = time.time() - timepoint
+
+    for k in perflog:
+        print(f'{k} : {perflog[k]}')
 
 
 def propagation_helper(work_dir, framenums, tag, crnt_ind, prev_ind, next_ind, mask_init, \
@@ -378,12 +410,8 @@ def greedy_call(img_fix, img_mov, regout_deform_inv, mask_fix, \
         os.system(cmd)
         print('greedy_call: Affine + Deformable registration computed!')
     elif regout_affine == '' and regout_deform != '':
-        print("deform")
         if regout_deform_inv != '':
-            print("deform_inv")
-            print('affine_init: ', affine_init)
             if affine_init != '':
-                print("affine_init")
                 cmd = f'greedy -d 3 \
                     -i {img_fix} {img_mov} \
                     -m SSD \
@@ -443,5 +471,4 @@ def apply_warp(image_type, img_fix, img_mov, img_reslice, \
     print('apply_warp: ', cmd)
     os.system(cmd)
     print('apply_warp: Affine + Deformable transformation applied!')
-
 
