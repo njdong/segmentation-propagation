@@ -6,7 +6,7 @@ workdir = "/users/jileihao/playground/sandbox"
 outdir = os.path.join(workdir, "out")
 segRefFn = os.path.join(workdir, "seg05_bav07_root_labeled.nii.gz")
 dcmFn = os.path.join(workdir, "bav07.dcm")
-frameNums = [3, 5, 6, 7]
+frameNums = [2, 3, 5, 7, 9, 11]
 
 
 p.propagate(
@@ -18,4 +18,4 @@ p.propagate(
     fref = 5
 )
 
-print("Complete")
+print("Completed")

@@ -125,8 +125,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             framenums = framenums,
             tag = tag,
             crnt_ind = i,
-            prev_ind = i - 1,
-            next_ind = i + 1,
+            is_forward = True,
+            fref = fref,
             mask_init = fn_mask_init,
             warp_str_array = warp_str_array,
             mask_ref_srs = fn_mask_ref_srs,
@@ -146,7 +146,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     for i in range(ref_ind, 0, -1):
         fCrnt = framenums[i]
         fNext = framenums[i - 1]
-        fPrev = framenums[i + 1]
+        fPrev = framenums[i + 1] if fCrnt != fref else -1
 
         print('Current Frame: ', framenums[i])
 
@@ -160,8 +160,8 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             framenums = framenums,
             tag = tag,
             crnt_ind = i,
-            prev_ind = i + 1,
-            next_ind = i - 1,
+            is_forward = False,
+            fref = fref,
             mask_init = fn_mask_init,
             warp_str_array = warp_str_array,
             mask_ref_srs = fn_mask_ref_srs,
@@ -169,6 +169,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     
     perflog['Backward Propagation'] = time.time() - timepoint
     timepoint = time.time()
+
     # Propagate in Full Resolution
     
     print('---------------------------------')
@@ -215,6 +216,13 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         cmd = f'c3d -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
         print(cmd)
         os.system(cmd)
+
+        # trim to generate a reference frame
+        fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
+        cmd = f'c3d {mask_fix} -trim 0vox -o {fn_reference_frame}'
+        print(cmd)
+        os.system(cmd)
+
         
         # output file location
         fn_seg_reslice = f'{outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
@@ -235,6 +243,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
             affine_init = affine_warps,
             regout_deform = fn_regout_deform,
             regout_deform_inv = fn_regout_deform_inv,
+            reference_image = fn_reference_frame,
             mask_fix = mask_fix
         )
         perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
@@ -270,12 +279,25 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
 
     perflog['Full Res Propagation'] = time.time() - timepoint
 
+    fn_perflog = os.path.join(outdir, 'perflog.txt')
+
+    if os.path.exists(fn_perflog):
+        fLog = open(fn_perflog, 'w')
+    else:
+        fLog = open(fn_perflog, 'x')
+
     for k in perflog:
-        print(f'{k} : {perflog[k]}')
+        oneline = f'{k} : {perflog[k]}'
+        print(oneline)
+        fLog.write(oneline + '\n')
 
 
-def propagation_helper(work_dir, framenums, tag, crnt_ind, prev_ind, next_ind, mask_init, \
-    warp_str_array, mask_ref_srs, mask_ref_srs_vtk):
+
+def propagation_helper(work_dir, framenums, tag, crnt_ind, fref, mask_init, \
+    warp_str_array, mask_ref_srs, mask_ref_srs_vtk, is_forward = True):
+    # forward propagation is in incremental order, backward is the reverse
+    next_ind = crnt_ind + 1 if is_forward else crnt_ind - 1
+
     fCrnt = framenums[crnt_ind]
     fNext = framenums[next_ind]
     
@@ -300,7 +322,11 @@ def propagation_helper(work_dir, framenums, tag, crnt_ind, prev_ind, next_ind, m
     )
 
     # Build warp string array recursively
-    warp_str_array[crnt_ind] = f'{warp_str_array[prev_ind]} {fn_regout_affine},-1 {fn_regout_deform_inv} '
+    if fCrnt == fref:
+        warp_str_array[crnt_ind] = f'{fn_regout_affine},-1 {fn_regout_deform_inv} '
+    else:
+        prev_ind = crnt_ind - 1 if is_forward else crnt_ind + 1
+        warp_str_array[crnt_ind] = f'{warp_str_array[prev_ind]} {fn_regout_affine},-1 {fn_regout_deform_inv} '
 
     # Parallelizable
     fn_mask_init_reslice = f'{work_dir}/mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.nii.gz'
@@ -353,7 +379,7 @@ def vtk_read_polydata(fn):
 
 
 def greedy_call(img_fix, img_mov, regout_deform_inv, mask_fix, \
-    affine_init = '', regout_affine = '', regout_deform = ''):
+    affine_init = '', regout_affine = '', regout_deform = '', reference_image = ''):
 
     """
     Make system call to greedy
@@ -383,8 +409,12 @@ def greedy_call(img_fix, img_mov, regout_deform_inv, mask_fix, \
         # Affine generation
         cmd = f'greedy -d 3 \
             -a \
-            -i {img_fix} {img_mov} \
-            -ia-identity \
+            -i {img_fix} {img_mov} '
+
+        if reference_image != '':
+            cmd = cmd + f'-rf {reference_image} '
+        
+        cmd = cmd + f'-ia-identity \
             -dof 6 \
             -s 3mm 1.5mm \
             -gm {mask_fix} \
@@ -396,8 +426,12 @@ def greedy_call(img_fix, img_mov, regout_deform_inv, mask_fix, \
         # Deform generation
         cmd = f'greedy -d 3 \
             -i {img_fix} {img_mov} \
-            -it {regout_affine} \
-            -m SSD \
+            -it {regout_affine} '
+
+        if reference_image != '':
+            cmd = cmd + f'-rf {reference_image} '
+
+        cmd = cmd + f'-m SSD \
             -n 100x100 \
             -s 3mm 1.5mm \
             -gm {mask_fix} \
@@ -413,8 +447,11 @@ def greedy_call(img_fix, img_mov, regout_deform_inv, mask_fix, \
         if regout_deform_inv != '':
             if affine_init != '':
                 cmd = f'greedy -d 3 \
-                    -i {img_fix} {img_mov} \
-                    -m SSD \
+                    -i {img_fix} {img_mov} '
+                if reference_image != '':
+                    cmd = cmd + f'-rf {reference_image} '
+                
+                cmd = cmd + f'-m SSD \
                     -n 100x100 \
                     -it {affine_init} \
                     -gm {mask_fix} \
