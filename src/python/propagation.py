@@ -94,7 +94,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     
     perflog['Export 3D Frames'] = time.time() - timepoint
 
-    """
+    
     # Preserving data
     polyData = vtk_read_polydata(fn_mask_ref_vtk)
     print("Mesh data preserved")
@@ -297,7 +297,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         print(oneline)
         fLog.write(oneline + '\n')
 
-    """
+    
 
 
 def propagation_helper(work_dir, framenums, tag, crnt_ind, fref, mask_init, \
