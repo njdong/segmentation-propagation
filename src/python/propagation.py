@@ -82,7 +82,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
         CartesianDicom.ExportFrame(i, fnImg)
         
-        cmd = '/usr/local/bin/c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
+        cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
         print(cmd)
         os.system(cmd)
     
