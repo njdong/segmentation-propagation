@@ -35,7 +35,13 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         return
 
     # directory storing temporary files
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+
     tmpdir = os.path.join(outdir, "tmp")
+
+    if not os.path.exists(tmpdir):
+        os.mkdir(tmpdir)
 
     # performance logger
     perflog = {}
@@ -88,7 +94,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     
     perflog['Export 3D Frames'] = time.time() - timepoint
 
-
+    """
     # Preserving data
     polyData = vtk_read_polydata(fn_mask_ref_vtk)
     print("Mesh data preserved")
@@ -291,6 +297,7 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         print(oneline)
         fLog.write(oneline + '\n')
 
+    """
 
 
 def propagation_helper(work_dir, framenums, tag, crnt_ind, fref, mask_init, \

@@ -123,7 +123,8 @@ class Dicom4D:
         print("Exporting Frame ", frameNum, " to: ", outfn)
         buf = self.Buffer
         affine = buf.GetAffine()
-        dataArr = np.transpose(np.transpose(buf.data)[frameNum])
+        # Array index (0 based) of the framenum (1 based) is always 1 smaller
+        dataArr = np.transpose(np.transpose(buf.data)[frameNum - 1])
         img = nib.Nifti1Image(dataArr, affine)
 
         # Save image to the file
