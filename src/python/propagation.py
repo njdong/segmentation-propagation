@@ -6,11 +6,14 @@ from Dicom4D import Dicom4D
 
 
 
-def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref = 0):
+def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref = 0):
 
     """
     INPUTS:
-    - fndcm: Cartesian DICOM filename
+    - fnimg: Image filename.
+        - Supported formats:
+            - (*.dcm) 4D Cartesian DICOM
+            - (*.nii) 4D NIfTI
     - outdir: Name of existing directory for output files
     - tag: Study Identifier (e.g., 'bav08_root')
     - seg_ref: Filename of reference segmentation (nii)
@@ -47,10 +50,16 @@ def propagate(fndcm, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     perflog = {}
     timepoint = time.time()
     
-    # Use the  reader to create a Dicom4D Image
-    CartesianDicom = Dicom4D(fndcm)
+    # parse image type
+    if fnimg..lower().endswith('.dcm'):
+        print('Reading dicom image...')
+        # Use the Dicom4D reader to create an Image4D object
+        CartesianDicom = Dicom4D(fndcm)
+        perflog['Dicom Loading'] =  time.time() - timepoint
+    elif fnimg.lower().endswith(('.nii.gz', '.nii')):
+        print('Reading NIfTI image...')
+        # Use the NIfTI reader to create an Image4D object
 
-    perflog['Dicom Loading'] =  time.time() - timepoint
 
     # Process reference segmentation
     # - Dilate the reference segmentation (mask)
