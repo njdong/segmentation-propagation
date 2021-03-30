@@ -2,7 +2,8 @@ import os
 import vtk
 import time
 import asyncio
-from Dicom4D import Dicom4D
+import shutil
+from Image4D import Image4D
 
 
 
@@ -49,17 +50,25 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     # performance logger
     perflog = {}
     timepoint = time.time()
+
+    image = None
     
     # parse image type
-    if fnimg..lower().endswith('.dcm'):
+    if fnimg.lower().endswith('.dcm'):
         print('Reading dicom image...')
         # Use the Dicom4D reader to create an Image4D object
-        CartesianDicom = Dicom4D(fndcm)
-        perflog['Dicom Loading'] =  time.time() - timepoint
+        image = Image4D(fnimg, 'dicom')
+        perflog['Dicom Loading'] = time.time() - timepoint
     elif fnimg.lower().endswith(('.nii.gz', '.nii')):
         print('Reading NIfTI image...')
+        image = Image4D(fnimg, 'nifti')
         # Use the NIfTI reader to create an Image4D object
+        perflog['NIfTI Loading'] = time.time() - timepoint
+    else:
+        print('Unknown image file type')
+        return
 
+    
 
     # Process reference segmentation
     # - Dilate the reference segmentation (mask)
@@ -76,6 +85,9 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     print("Creating mask mesh...")
     print(cmd)
     os.system(cmd)
+    # -- make one copy to the out directory with same naming convention as output mesh
+    fn_seg_ref_vtk = os.path.join(outdir, f'seg_{fref}_root_{tag}_labeled.vtk')
+    shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
 
     # - Create vtk mesh from the dilated mask
     fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{fref}_{tag}_srs.vtk')
@@ -95,25 +107,25 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     for i in framenums:
         fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
         fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
-        CartesianDicom.ExportFrame(i, fnImg)
+        image.ExportFrame(i, fnImg)
         
         cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
         print(cmd)
         os.system(cmd)
     
     perflog['Export 3D Frames'] = time.time() - timepoint
-
+    
     
     # Preserving data
     polyData = vtk_read_polydata(fn_mask_ref_vtk)
     print("Mesh data preserved")
     
+    """
 
     # Initialize warp string array
     warp_str_array = [''] * len(framenums)
 
     ref_ind = framenums.index(fref)
-
     
     # Propagate Forward
     print('---------------------------------')
@@ -306,6 +318,7 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         print(oneline)
         fLog.write(oneline + '\n')
 
+    """
     
 
 
