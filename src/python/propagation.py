@@ -120,7 +120,7 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
     polyData = vtk_read_polydata(fn_mask_ref_vtk)
     print("Mesh data preserved")
     
-    """
+    
 
     # Initialize warp string array
     warp_str_array = [''] * len(framenums)
@@ -318,7 +318,7 @@ def propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref =
         print(oneline)
         fLog.write(oneline + '\n')
 
-    """
+    
     
 
 
