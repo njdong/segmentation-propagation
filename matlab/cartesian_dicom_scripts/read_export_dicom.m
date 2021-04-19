@@ -27,4 +27,5 @@ if strcmp(fnout(end-2:end),'.gz')
     fnout = fnout(1:end-3);
 end
 save_nii(nii,fnout);
-gzip_img(fnout,'gzip');
+gzip(fnout);
+%gzip_img(fnout,'gzip');
