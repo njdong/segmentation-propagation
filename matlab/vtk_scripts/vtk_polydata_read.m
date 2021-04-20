@@ -52,7 +52,7 @@ function p = vtk_polydata_read(file, varargin)
 
             % Read point values
             X = vtkreaddata(fid, p, 3 * n, data_type, pars);
-            p.points = reshape(X, 3, [])';
+            p.points = reshape(X, 3, []);
 
         elseif strcmp(mode,'intro') && any(strcmpi(key, ...
                 {'polygons','vertices','lines','triangle_strips'}))
@@ -106,14 +106,14 @@ function p = vtk_polydata_read(file, varargin)
                     % Read the data
                     data_type = vtkreadstr(fid, '%s\n');
                     X = vtkreaddata(fid, p, nattr * 3, data_type, pars);
-                    arr.data = reshape(X, 3, [])';
+                    arr.data = reshape(X, 3, []);
 
                 elseif strcmpi(key, 'tensors')
 
                     % Read the data
                     data_type = vtkreadstr(fid, '%s\n');
                     X = vtkreaddata(fid, p, nattr * 9, data_type, pars);
-                    arr.data = reshape(X, 9, [])';
+                    arr.data = reshape(X, 9, []);
 
                 elseif strcmpi(key, 'texture_coordinates')
 
@@ -121,7 +121,7 @@ function p = vtk_polydata_read(file, varargin)
                     ncomp = vtkreadnum(fid, '%d');
                     data_type = vtkreadstr(fid, '%s\n');
                     X = vtkreaddata(fid, p, nattr * ncomp, data_type, pars);
-                    arr.data = reshape(X, ncomp, [])';
+                    arr.data = reshape(X, ncomp, []);
 
                 elseif strcmpi(key, 'scalars')
                     
@@ -129,7 +129,7 @@ function p = vtk_polydata_read(file, varargin)
                     data_type = vtkreadstr(fid, '%s\n');
                     junk = vtkreadstr(fid, '%s %s\n');
                     X = vtkreaddata(fid, p, nattr, data_type, pars);
-                    arr.data = reshape(X, 1, [])';
+                    arr.data = reshape(X, 1, []);
                     
                 else
                     
@@ -161,7 +161,7 @@ function p = vtk_polydata_read(file, varargin)
                 
                 % Read the tuple data
                 X = vtkreaddata(fid, p, ncomp * ntuples, data_type, pars);
-                arr.data = reshape(X, ncomp, [])';
+                arr.data = reshape(X, ncomp, []);
                                 
                 % Append the array
                 if ~isfield(p, mode)

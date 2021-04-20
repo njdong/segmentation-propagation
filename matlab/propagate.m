@@ -32,7 +32,7 @@ fref_ind_f = find(f == fref);
 mask_ref_srs = [outdir '/mask' sprintf('%02d',fref) '_' tag '_srs.nii.gz'];
 mask_ref_srs_vtk = [strtok(mask_ref_srs,'.') '.vtk'];
 system(['/usr/local/bin/c3d -int 0 ' seg_ref ' -threshold 1 inf 1 0 -dilate 1 10x10x10vox -resample 50% -o ' mask_ref_srs])
-system(['vtklevelset ' mask_ref_srs ' ' mask_ref_srs_vtk ' 1']);
+system(['/usr/local/bin/vtklevelset ' mask_ref_srs ' ' mask_ref_srs_vtk ' 1']);
 
 % cells of input mesh
 mref = vtk_polydata_read(seg_ref_vtk);
@@ -73,14 +73,14 @@ for j =  fref_ind_f : length(f) - 1
         regout_deform = [outdir '/warp' sprintf('%02d',i_next) '_to_' sprintf('%02d',i) '_srs_init.nii.gz'];
         regout_deform_inv = [outdir '/warp' sprintf('%02d',i_next) '_to_' sprintf('%02d',i) '_srs_init_inv.nii.gz'];
 
-        img_reslice_init = [outdir '/img' sprintf('%02d',i) '_to_' sprintf('%02d',i_next) '_' tag '_srs_reslice_init.nii.gz'];
+        %img_reslice_init = [outdir '/img' sprintf('%02d',i) '_to_' sprintf('%02d',i_next) '_' tag '_srs_reslice_init.nii.gz'];
         mask_init_reslice = [outdir '/mask' sprintf('%02d',i) '_to_' sprintf('%02d',i_next) '_' tag '_srs_reslice_init.nii.gz'];
         mask_init_reslice_vtk = [outdir '/mask' sprintf('%02d',i) '_to_' sprintf('%02d',i_next) '_' tag '_srs_reslice_init.vtk'];
 
         greedy_call(img_fix,img_mov,[],regout_affine,regout_deform,regout_deform_inv,mask_init);
 
         warp_str_forward = [warp_str_forward ' ' regout_affine ',-1 ' regout_deform_inv ' '];
-        apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_forward,[],[]);
+        %apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_forward,[],[]);
         apply_warp('label',img_mov,mask_ref_srs,mask_init_reslice,warp_str_forward,[],[]);
         apply_warp('mesh',img_mov,mask_ref_srs_vtk,mask_init_reslice_vtk,warp_str_forward,[],[]);
 end
@@ -112,7 +112,7 @@ for j = fref_ind_f : -1 : 2
         greedy_call(img_fix,img_mov,[],regout_affine,regout_deform,regout_deform_inv,mask_init);
 
         warp_str_back = [warp_str_back ' ' regout_affine ',-1 ' regout_deform_inv ' '];
-        apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_back,[],[]);
+        % apply_warp('grayscale',img_mov,img_fix,img_reslice_init,warp_str_back,[],[]);
         apply_warp('label',img_mov,mask_ref_srs,mask_init_reslice,warp_str_back,[],[]);
         apply_warp('mesh',img_mov,mask_ref_srs_vtk,mask_init_reslice_vtk,warp_str_back,[],[]);
 end

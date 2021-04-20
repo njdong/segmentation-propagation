@@ -13,14 +13,18 @@ function [x] = readDicom3D(filename)
 
 
 % Get Header info
+disp(filename);
+
 fid = fopen(filename,'r','l');    % Note small L "l" for Little Endian
-if(~fid) error('could not open input file'); end;
+if(~fid) error('could not open input file'); end
 
 % Waste first 128 Bytes
 WasteBytes  = fread(fid,128,'char');
 
 % Waste Dicom Label
 DICM    = char(fread(fid,4,'char'));
+
+disp(DICM);
 
 % Initialize Dicom Tags for "while" loop
 TagA = 0;
@@ -38,12 +42,14 @@ while ((TagA~=Data_TagA) || (TagB~=Data_TagB)) && (LoopCounter<200)
     
     TagA    = fread(fid,1,'ushort');
     TagB    = fread(fid,1,'ushort');
-    CODE    = char(fread(fid,2,'char'))';
+    CODE    = fread(fid,2,'uint8=>char');
     N       = fread(fid,1,'ushort');
     
-%    LoopCounter, CODE
+    %LoopCounter, CODE
     
-%    display([num2str(LoopCounter) ' ' num2str(TagA) ' ' num2str(TagB) ' ' CODE ' ' num2str(N)]);
+    %display([num2str(LoopCounter) ' ' num2str(TagA) ' ' num2str(TagB) ' ' CODE ' ' num2str(N)]);
+    %disp([num2str(LoopCounter) ' ' num2str(dec2hex(TagA)) ' ' num2str(dec2hex(TagB)) ' ' num2str(N)]);
+    %disp(CODE);
     
     switch TagA
         
@@ -58,7 +64,7 @@ while ((TagA~=Data_TagA) || (TagB~=Data_TagB)) && (LoopCounter<200)
         
     case hex2dec('0028')
         if TagB==hex2dec('0008')
-            tmpstr      = char(fread(fid,N,'char')');
+            tmpstr      = char(fread(fid,N,'char'));
             x.NumVolumes= sscanf(tmpstr,'%d');
         elseif TagB==hex2dec('0010')
             x.height  = fread(fid,1,'ushort');  % # of rows
@@ -82,7 +88,9 @@ while ((TagA~=Data_TagA) || (TagB~=Data_TagB)) && (LoopCounter<200)
         
     end
     
-    if (CODE == 'OB') WasteBytes = fread(fid,6,'char'); end;
+    if (CODE == transpose('OB'))
+        WasteBytes = fread(fid,6,'char'); 
+    end
     
 end
 
