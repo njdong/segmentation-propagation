@@ -7,9 +7,12 @@ from Image4D import Image4D
 class Propagator:
     def __init__(self):
         # set default values
+        self.fnimg = ""
         self.tag = "default"
+        self.fref = -1
         self.outdir = "./out"
         self.greedyLoc = "greedy"
+        self.vtklevelsetLocation = "vtklevelset"
 
     def SetInputImage(self, _fnimg):
         self.fnimg = _fnimg
@@ -41,15 +44,22 @@ class Propagator:
         """
         self.greedyLocation = _greedyLoc
 
+    def SetVtkLevelSetLocation(self, _vtklevelsetLoc):
+        """
+            Optional: Set the specific version of vtklevelset for the propagation
+            By default the propagator will run vtklevelset from the path
+        """
+        self.vtklevelsetLocation = _vtklevelsetLoc
+
     def Run(self):
         print("Start running propagation")
-        print(self.fnimg)
-        print(self.tag)
-        print(self.outdir)
-        print(self.fnsegref)
-        print(self.fref)
-        print(self.targetFrames)
-        print(self.greedyLocation)
+        print("fnimg: ", self.fnimg)
+        print("tag: ", self.tag)
+        print("outdir: ", self.outdir)
+        print("fnsegref: ", self.fnsegref)
+        print("fref: ", self.fref)
+        print("targetframe: ", self.targetFrames)
+        print("greedyLoc: ", self.greedyLocation)
         #self.__propagate()
         print("Propagation completed!")
 
@@ -73,7 +83,7 @@ class Propagator:
         - outdir: Name of existing directory for output files
         - tag: Study Identifier (e.g., 'bav08_root')
         - seg_ref: Filename of reference segmentation (nii)
-        - framenums: List of frame numbers to segment
+        - framenums: List of frame numbers to propagate segementation to
         - fref: Reference segmentation frame
 
         Use full paths for all filenames.
@@ -89,15 +99,19 @@ class Propagator:
         - Extract and dialate 3D frame from the 4D image
 
         """
+        # Validate Input Parameters
+        if (self.fnimg == ""):
+            raise RuntimeError("Input Image not set!")
+        if (len(self.targetFrames) == 0):
+            raise RuntimeError("Target Frames not set!")
+        if (self.fref == -1):
+            raise RuntimeError("Reference Frame Number not set!")
 
-        if len(framenums) == 0:
-            return
+        # create output directories
+        if not os.path.exists(self.outdir):
+            os.mkdir(self.outdir)
 
-        # directory storing temporary files
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-
-        tmpdir = os.path.join(outdir, "tmp")
+        tmpdir = os.path.join(self.outdir, "tmp")
 
         if not os.path.exists(tmpdir):
             os.mkdir(tmpdir)
@@ -109,14 +123,14 @@ class Propagator:
         image = None
         
         # parse image type
-        if fnimg.lower().endswith('.dcm'):
+        if self.fnimg.lower().endswith('.dcm'):
             print('Reading dicom image...')
             # Use the Dicom4D reader to create an Image4D object
-            image = Image4D(fnimg, 'dicom')
+            image = Image4D(self.fnimg, 'dicom')
             perflog['Dicom Loading'] = time.time() - timepoint
-        elif fnimg.lower().endswith(('.nii.gz', '.nii')):
+        elif self.fnimg.lower().endswith(('.nii.gz', '.nii')):
             print('Reading NIfTI image...')
-            image = Image4D(fnimg, 'nifti')
+            image = Image4D(self.fnimg, 'nifti')
             # Use the NIfTI reader to create an Image4D object
             perflog['NIfTI Loading'] = time.time() - timepoint
         else:
@@ -127,26 +141,26 @@ class Propagator:
 
         # Process reference segmentation
         # - Dilate the reference segmentation (mask)
-        fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{fref}_{tag}_srs.nii.gz')
-        cmd = f'c3d -int 0 {seg_ref} -threshold 1 inf 1 0 \
+        fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.nii.gz')
+        cmd = f'c3d -int 0 {self.fnsegref} -threshold 1 inf 1 0 \
             -dilate 1 10x10x10vox -resample 50% -o {fn_mask_ref_srs}'
         print("Dilating reference segmentation...")
         print(cmd)
         os.system(cmd)
 
         # - Create vtk mesh
-        fn_mask_ref_vtk = os.path.join(tmpdir, f'mask_{fref}_{tag}.vtk')
-        cmd = f'vtklevelset {seg_ref} {fn_mask_ref_vtk} 1'
+        fn_mask_ref_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}.vtk')
+        cmd = f'{self.vtklevelsetLocation} {seg_ref} {fn_mask_ref_vtk} 1'
         print("Creating mask mesh...")
         print(cmd)
         os.system(cmd)
         # -- make one copy to the out directory with same naming convention as output mesh
-        fn_seg_ref_vtk = os.path.join(outdir, f'seg_{fref}_root_{tag}_labeled.vtk')
+        fn_seg_ref_vtk = os.path.join(self.outdir, f'seg_{self.fref}_root_{self.tag}_labeled.vtk')
         shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
 
         # - Create vtk mesh from the dilated mask
-        fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{fref}_{tag}_srs.vtk')
-        cmd = f"vtklevelset {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
+        fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.vtk')
+        cmd = f"{self.vtklevelsetLocation} {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
         print("Creating dilated mask mesh...")
         print(cmd)
         os.system(cmd)
@@ -160,8 +174,8 @@ class Propagator:
         timepoint = time.time()
         
         for i in framenums:
-            fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
-            fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
+            fnImg = f'{tmpdir}/img_{i}_{self.tag}.nii.gz'
+            fnImgRs = f'{tmpdir}/img_{i}_{self.tag}_srs.nii.gz'
             image.ExportFrame(i, fnImg)
             
             cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
@@ -171,12 +185,6 @@ class Propagator:
         perflog['Export 3D Frames'] = time.time() - timepoint
         
         
-        # Preserving data
-        polyData = vtk_read_polydata(fn_mask_ref_vtk)
-        print("Mesh data preserved")
-        
-        
-
         # Initialize warp string array
         warp_str_array = [''] * len(framenums)
 
