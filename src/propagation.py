@@ -62,7 +62,10 @@ class Propagator:
         print("fref: ", self.fref)
         print("targetframe: ", self.targetFrames)
         print("greedyLoc: ", self.greedyLocation)
-        #self.__propagate()
+        print("vtklevelset: ", self.vtklevelsetLocation)
+
+        self.__propagate()
+
         print("Propagation completed!")
 
     
@@ -155,7 +158,7 @@ class Propagator:
 
         # - Create vtk mesh
         fn_mask_ref_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}.vtk')
-        cmd = f'{self.vtklevelsetLocation} {seg_ref} {fn_mask_ref_vtk} 1'
+        cmd = f'{self.vtklevelsetLocation} -pl {self.fnsegref} {fn_mask_ref_vtk} 1'
         print("Creating mask mesh...")
         print(cmd)
         os.system(cmd)
@@ -165,7 +168,7 @@ class Propagator:
 
         # - Create vtk mesh from the dilated mask
         fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.vtk')
-        cmd = f"{self.vtklevelsetLocation} {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
+        cmd = f"{self.vtklevelsetLocation} -pl {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
         print("Creating dilated mask mesh...")
         print(cmd)
         os.system(cmd)
@@ -318,8 +321,8 @@ class Propagator:
 
             
             # output file location
-            fn_seg_reslice = f'{outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
-            fn_seg_reslice_vtk = f'{outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice_labeled.vtk'
+            fn_seg_reslice = f'{self.outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
+            fn_seg_reslice_vtk = f'{self.outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice_labeled.vtk'
 
             # transformation filenames
             fn_regout_deform = f'{tmpdir}/warp_{fref}_to_{fCrnt}.nii.gz'
@@ -368,7 +371,7 @@ class Propagator:
 
         perflog['Full Res Propagation'] = time.time() - timepoint
 
-        fn_perflog = os.path.join(outdir, 'perflog.txt')
+        fn_perflog = os.path.join(self.outdir, 'perflog.txt')
 
         if os.path.exists(fn_perflog):
             fLog = open(fn_perflog, 'w')

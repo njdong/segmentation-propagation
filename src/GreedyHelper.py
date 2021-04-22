@@ -38,7 +38,7 @@ class GreedyHelper:
             if reference_image != '':
                 aff_cmd = aff_cmd + f'-rf {reference_image} '
             
-            aff_cmd = aff_cmd + 
+            aff_cmd = aff_cmd + \
                 f'-ia-identity \
                 -dof 6 \
                 -s 3mm 1.5mm \
@@ -54,7 +54,7 @@ class GreedyHelper:
             if reference_image != '':
                 def_cmd = def_cmd + f'-rf {reference_image} '
 
-            def_cmd = def_cmd + 
+            def_cmd = def_cmd + \
                 f'-m SSD \
                 -n 100x100 \
                 -s 3mm 1.5mm \
