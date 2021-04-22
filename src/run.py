@@ -1,21 +1,19 @@
-import propagation as p
 import os
+from propagation import Propagator
 
-print("CZI-31 python testing script")
 workdir = "/users/jileihao/playground/sandbox"
-outdir = os.path.join(workdir, "out")
-segRefFn = os.path.join(workdir, "seg05_bav07_root_labeled.nii.gz")
-fnImg = os.path.join(workdir, "bav07.nii.gz")
-frameNums = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
+# Create a new Propagator
+p = Propagator()
 
-p.propagate(
-    fnimg = fnImg,
-    outdir = outdir,
-    tag = "nii",
-    seg_ref = segRefFn,
-    framenums = frameNums,
-    fref = 5
-)
+# Set Parameters
+p.SetTag("dev")
+p.SetInputImage(os.path.join(workdir, "bav07.nii.gz"))
+p.SetReferenceSegmentation(os.path.join(workdir, "seg05_bav07_root_labeled.nii.gz"))
+p.SetReferenceFrameNumber(5)
+p.SetGreedyLocation(os.path.join(workdir, "greedy"))
+p.SetTargetFrames([1,2,3,4,5,6,7,8,9])
+p.SetOutputDir(os.path.join(workdir, "out"))
 
-print("Completed")
+# Run propagation
+p.Run()
