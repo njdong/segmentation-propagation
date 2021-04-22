@@ -3,6 +3,7 @@ import vtk
 import time
 import shutil
 from Image4D import Image4D
+from GreedyHelper import GreedyHelper
 
 class Propagator:
     def __init__(self):
@@ -11,8 +12,9 @@ class Propagator:
         self.tag = "default"
         self.fref = -1
         self.outdir = "./out"
-        self.greedyLoc = "greedy"
+        self.greedyLocation = "greedy"
         self.vtklevelsetLocation = "vtklevelset"
+        self.greedy = None
 
     def SetInputImage(self, _fnimg):
         self.fnimg = _fnimg
@@ -99,6 +101,9 @@ class Propagator:
         - Extract and dialate 3D frame from the 4D image
 
         """
+        # Initialize Greedy Helper
+        self.greedy = GreedyHelper(self.greedyLocation)
+
         # Validate Input Parameters
         if (self.fnimg == ""):
             raise RuntimeError("Input Image not set!")
@@ -171,11 +176,15 @@ class Propagator:
         # CartesianDicom.Export4D(os.path.join(outdir, 'img4D.nii.gz'))
         # Parallelizable
 
+        framenums = self.targetFrames
+        tag = self.tag
+        fref = self.fref
+
         timepoint = time.time()
         
         for i in framenums:
-            fnImg = f'{tmpdir}/img_{i}_{self.tag}.nii.gz'
-            fnImgRs = f'{tmpdir}/img_{i}_{self.tag}_srs.nii.gz'
+            fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
+            fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
             image.ExportFrame(i, fnImg)
             
             cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
@@ -210,13 +219,10 @@ class Propagator:
                 fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
 
             
-            propagation_helper(
+            self.__propagation_helper(
                 work_dir = tmpdir,
-                framenums = framenums,
-                tag = tag,
                 crnt_ind = i,
                 is_forward = True,
-                fref = fref,
                 mask_init = fn_mask_init,
                 warp_str_array = warp_str_array,
                 mask_ref_srs = fn_mask_ref_srs,
@@ -245,13 +251,10 @@ class Propagator:
             else:
                 fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
 
-            propagation_helper(
+            self.__propagation_helper(
                 work_dir = tmpdir,
-                framenums = framenums,
-                tag = tag,
                 crnt_ind = i,
                 is_forward = False,
-                fref = fref,
                 mask_init = fn_mask_init,
                 warp_str_array = warp_str_array,
                 mask_ref_srs = fn_mask_ref_srs,
@@ -327,7 +330,7 @@ class Propagator:
 
             
             print('Running Full Res Registration...')
-            greedy_call(
+            self.greedy.run_reg(
                 img_fix = fn_img_fix,
                 img_mov = fn_img_mov,
                 affine_init = affine_warps,
@@ -340,10 +343,10 @@ class Propagator:
             timepoint1 = time.time()
 
             print('Applying warp to segmentation...')
-            apply_warp(
+            self.greedy.apply_warp(
                 image_type = 'label',
                 img_fix = fn_img_fix,
-                img_mov = seg_ref,
+                img_mov = self.fnsegref,
                 img_reslice = fn_seg_reslice,
                 reg_affine = affine_warps,
                 reg_deform = fn_regout_deform
@@ -353,7 +356,7 @@ class Propagator:
 
             print('Applying warp to mesh...')
             mesh_warps = affine_warps_pts + fn_regout_deform_inv
-            apply_warp(
+            self.greedy.apply_warp(
                 image_type = 'mesh',
                 img_fix = fn_img_fix,
                 img_mov = fn_mask_ref_vtk,
@@ -361,10 +364,6 @@ class Propagator:
                 reg_affine = mesh_warps
             )
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
-
-            # restore cell data 
-            print('Restoring poly data to mesh...')
-            vtk_replace_stripes(fn_seg_reslice_vtk, polyData)
             
 
         perflog['Full Res Propagation'] = time.time() - timepoint
@@ -385,8 +384,18 @@ class Propagator:
     
 
 
-    def __runGreedy(work_dir, framenums, tag, crnt_ind, fref, mask_init, \
+    def __propagation_helper(self, work_dir, crnt_ind, mask_init, \
         warp_str_array, mask_ref_srs, mask_ref_srs_vtk, is_forward = True):
+        """
+            Run propagation in one direction (forward or backward), with
+            downsampled images
+        """
+
+        fref = self.fref
+        framenums = self.targetFrames
+        tag = self.tag
+
+
         # forward propagation is in incremental order, backward is the reverse
         next_ind = crnt_ind + 1 if is_forward else crnt_ind - 1
 
@@ -404,7 +413,7 @@ class Propagator:
         fn_regout_deform_inv = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz'
         
         # call greedy to generate transformations
-        greedy_call(
+        self.greedy.run_reg(
             img_fix = fn_img_fix,
             img_mov = fn_img_mov,
             regout_affine = fn_regout_affine,
@@ -426,7 +435,7 @@ class Propagator:
 
         # call greedy applying warp
         print('Applying warp to label...')
-        apply_warp(
+        self.greedy.apply_warp(
             image_type = 'label',
             img_fix = fn_img_mov,
             img_mov = mask_ref_srs,
@@ -435,7 +444,7 @@ class Propagator:
         )
 
         print('Applying warp to mesh...')
-        apply_warp(
+        self.greedy.apply_warp(
             image_type = 'mesh',
             img_fix = fn_img_mov,
             img_mov = mask_ref_srs_vtk,
