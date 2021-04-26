@@ -136,7 +136,8 @@ class Image4D:
         data.deltaZ = pixdim[3]
         data.deltaT = pixdim[4]
 
-        data.voxels = np.array(buffer.get_fdata()).astype(np.uint8)
+        print("Voxel datatype: ", buffer.get_data_dtype())
+        data.voxels = np.array(buffer.get_fdata()).astype(buffer.get_data_dtype())
 
         data.printInfo()
 
