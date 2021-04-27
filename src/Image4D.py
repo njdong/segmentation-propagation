@@ -119,9 +119,10 @@ class Image4D:
 
         # Load 4D nifti data from file
         buffer = nib.load(self.Filename)
-        # print(buffer)
+        #print(buffer)
         
         hdr = buffer.header
+        data.affine = buffer.affine
         dim = hdr.get_data_shape()
         assert(len(dim) == 4)
 
@@ -159,6 +160,7 @@ class Image4D:
         print("Exporting Frame ", frameNum, " to: ", outfn)
         data = self.Data
         affine = data.GetAffine()
+        #print(affine)
         # Array index (0 based) of the framenum (1 based) is always 1 smaller
         voxelArr = np.transpose(np.transpose(data.voxels)[frameNum - 1])
         img = nib.Nifti1Image(voxelArr, affine)
@@ -189,9 +191,23 @@ class ImageData:
         self.deltaY = None
         self.deltaZ = None
         self.deltaT = None
+        # Origin
+        self.originX = 0
+        self.originY = 0
+        self.originZ = 0
+        # Orientation
+        self.orientationX = 1
+        self.orientationY = 1
+        self.orientationZ = 1
+        # Affine
+        self.affine = None
 
     def GetAffine (self):
-        return np.diag([self.deltaX, self.deltaY, self.deltaZ, 1])
+        if self.affine is not None:
+            return self.affine
+        else:
+            # Todo: Change this for ECD import
+            return np.diag([self.deltaX, self.deltaY, self.deltaZ, 1])
 
     def printInfo (self):
         print("Class: ImageData")
