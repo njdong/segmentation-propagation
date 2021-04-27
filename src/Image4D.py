@@ -6,17 +6,18 @@ import gzip
 class Image4D:
     """
     """
-    def __init__ (self, fnimg, type = 'dicom'):
+    def __init__ (self, fnimg, _type = 'dicom'):
         self.Filename = fnimg
+        self.ImageType = _type
 
         # Read file into buffer
         self.Data = ImageData()
-        if (type == 'dicom'):
+        if (_type == 'dicom'):
             self.__loadDicom()
-        elif (type == 'nifti'):
+        elif (_type == 'nifti'):
             self.__loadNIfTI()
         else:
-            print(f'Image4D: Unknown Image Type "{type}"!')
+            print(f'Image4D: Unknown Image Type "{_type}"!')
             
         
     # Load Dicom Data
@@ -190,24 +191,18 @@ class ImageData:
         self.deltaX = None
         self.deltaY = None
         self.deltaZ = None
-        self.deltaT = None
-        # Origin
-        self.originX = 0
-        self.originY = 0
-        self.originZ = 0
-        # Orientation
-        self.orientationX = 1
-        self.orientationY = 1
-        self.orientationZ = 1
+        self.deltaT = None # frame time
+
         # Affine
         self.affine = None
+    
 
     def GetAffine (self):
         if self.affine is not None:
             return self.affine
         else:
-            # Todo: Change this for ECD import
-            return np.diag([self.deltaX, self.deltaY, self.deltaZ, 1])
+            # Export in LPS by default
+            return np.diag([self.deltaX, self.deltaY, -self.deltaZ, 1])
 
     def printInfo (self):
         print("Class: ImageData")
