@@ -6,17 +6,18 @@ import gzip
 class Image4D:
     """
     """
-    def __init__ (self, fnimg, type = 'dicom'):
+    def __init__ (self, fnimg, _type = 'dicom'):
         self.Filename = fnimg
+        self.ImageType = _type
 
         # Read file into buffer
         self.Data = ImageData()
-        if (type == 'dicom'):
+        if (_type == 'dicom'):
             self.__loadDicom()
-        elif (type == 'nifti'):
+        elif (_type == 'nifti'):
             self.__loadNIfTI()
         else:
-            print(f'Image4D: Unknown Image Type "{type}"!')
+            print(f'Image4D: Unknown Image Type "{_type}"!')
             
         
     # Load Dicom Data
@@ -119,9 +120,10 @@ class Image4D:
 
         # Load 4D nifti data from file
         buffer = nib.load(self.Filename)
-        # print(buffer)
+        #print(buffer)
         
         hdr = buffer.header
+        data.affine = buffer.affine
         dim = hdr.get_data_shape()
         assert(len(dim) == 4)
 
@@ -136,7 +138,8 @@ class Image4D:
         data.deltaZ = pixdim[3]
         data.deltaT = pixdim[4]
 
-        data.voxels = np.array(buffer.get_fdata()).astype(np.uint8)
+        print("Voxel datatype: ", buffer.get_data_dtype())
+        data.voxels = np.array(buffer.get_fdata()).astype(buffer.get_data_dtype())
 
         data.printInfo()
 
@@ -158,6 +161,7 @@ class Image4D:
         print("Exporting Frame ", frameNum, " to: ", outfn)
         data = self.Data
         affine = data.GetAffine()
+        #print(affine)
         # Array index (0 based) of the framenum (1 based) is always 1 smaller
         voxelArr = np.transpose(np.transpose(data.voxels)[frameNum - 1])
         img = nib.Nifti1Image(voxelArr, affine)
@@ -187,10 +191,18 @@ class ImageData:
         self.deltaX = None
         self.deltaY = None
         self.deltaZ = None
-        self.deltaT = None
+        self.deltaT = None # frame time
+
+        # Affine
+        self.affine = None
+    
 
     def GetAffine (self):
-        return np.diag([self.deltaX, self.deltaY, self.deltaZ, 1])
+        if self.affine is not None:
+            return self.affine
+        else:
+            # Export in LPS by default
+            return np.diag([self.deltaX, self.deltaY, -self.deltaZ, 1])
 
     def printInfo (self):
         print("Class: ImageData")
