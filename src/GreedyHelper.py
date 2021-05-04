@@ -5,7 +5,8 @@ class GreedyHelper:
         self.greedy = location
 
     def run_reg(self, img_fix, img_mov, regout_deform_inv, mask_fix, \
-        affine_init = '', regout_affine = '', regout_deform = '', reference_image = ''):
+        affine_init = '', regout_affine = '', regout_deform = '', reference_image = '', \
+        multi_res_schedule = '100x100', metric_spec = 'SSD'):
 
         """
         Make system call to greedy
@@ -55,8 +56,8 @@ class GreedyHelper:
                 def_cmd = def_cmd + f'-rf {reference_image} '
 
             def_cmd = def_cmd + \
-                f'-m SSD \
-                -n 100x100 \
+                f'-m {metric_spec} \
+                -n {multi_res_schedule} \
                 -s 3mm 1.5mm \
                 -gm {mask_fix} \
                 -o {regout_deform} '
@@ -76,8 +77,8 @@ class GreedyHelper:
                     if reference_image != '':
                         cmd = cmd + f'-rf {reference_image} '
                     
-                    cmd = cmd + f'-m SSD \
-                        -n 100x100 \
+                    cmd = cmd + f'-m {metric_spec} \
+                        -n {multi_res_schedule} \
                         -it {affine_init} \
                         -gm {mask_fix} \
                         -s 3mm 1.5mm \

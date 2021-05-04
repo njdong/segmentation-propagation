@@ -2,6 +2,7 @@ import os
 import vtk
 import time
 import shutil
+from LogManager import LogManager
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
 
@@ -15,6 +16,8 @@ class Propagator:
         self.greedyLocation = "greedy"
         self.vtklevelsetLocation = "vtklevelset"
         self.greedy = None
+        self.multi_res_schedule = '100x100'
+        self.metric_spec = 'SSD'
 
     def SetInputImage(self, _fnimg):
         self.fnimg = _fnimg
@@ -53,22 +56,27 @@ class Propagator:
         """
         self.vtklevelsetLocation = _vtklevelsetLoc
 
+    def SetFullResIterations(self, _iter):
+        """
+            Optional: Set the Multi-Resolution Schedule (-n) parameter value for 
+            full resolution greedy registration
+            Default Value: 100x100
+        """
+        self.multi_res_schedule = _iter
+
+    def SetMetricSpec(self, _metric_spec):
+        """
+            Optional: Set the Metric Specification (-m) parameter value for full
+            resolution greedy registration
+            Default Value: SSD
+        """
+        self.metric_spec = _metric_spec
+
+
     def Run(self):
-        print("Start running propagation")
-        print("fnimg: ", self.fnimg)
-        print("tag: ", self.tag)
-        print("outdir: ", self.outdir)
-        print("fnsegref: ", self.fnsegref)
-        print("fref: ", self.fref)
-        print("targetframe: ", self.targetFrames)
-        print("greedyLoc: ", self.greedyLocation)
-        print("vtklevelset: ", self.vtklevelsetLocation)
-
         self.__propagate()
-
         print("Propagation completed!")
 
-    
 
     def __parseFrameRangeArray(self, rangeArr):
         # todo: replace the placeholder
@@ -114,10 +122,23 @@ class Propagator:
             raise RuntimeError("Target Frames not set!")
         if (self.fref == -1):
             raise RuntimeError("Reference Frame Number not set!")
+        if (self.fref not in self.targetFrames):
+            # always including reference frame in the target frame
+            self.targetFrames.append(self.fref)
+            self.targetFrames.sort()
+            print('Reference frame added to target frames')
 
         # create output directories
+        meshdir = os.path.join(self.outdir, 'mesh')
         if not os.path.exists(self.outdir):
+            # directory for output
             os.mkdir(self.outdir)
+            # subdirectory for mesh outputs
+            os.mkdir(meshdir)
+
+        # recreate mesh dir in case it was removed manually
+        if not os.path.exists(meshdir):
+            os.mkdir(meshdir)
 
         tmpdir = os.path.join(self.outdir, "tmp")
 
@@ -163,7 +184,7 @@ class Propagator:
         print(cmd)
         os.system(cmd)
         # -- make one copy to the out directory with same naming convention as output mesh
-        fn_seg_ref_vtk = os.path.join(self.outdir, f'seg_{self.fref}_root_{self.tag}_labeled.vtk')
+        fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self.tag}_{self.fref}.vtk')
         shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
 
         # - Create vtk mesh from the dilated mask
@@ -322,7 +343,7 @@ class Propagator:
             
             # output file location
             fn_seg_reslice = f'{self.outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
-            fn_seg_reslice_vtk = f'{self.outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice_labeled.vtk'
+            fn_seg_reslice_vtk = f'{self.outdir}/mesh/seg_{tag}_{fCrnt}.vtk'
 
             # transformation filenames
             fn_regout_deform = f'{tmpdir}/warp_{fref}_to_{fCrnt}.nii.gz'
@@ -333,6 +354,11 @@ class Propagator:
 
             
             print('Running Full Res Registration...')
+            if self.multi_res_schedule != '100x100':
+                print(f'Using non-default parameters: -n {self.multi_res_schedule}')
+            if self.metric_spec != 'SSD':
+                print(f'Using non-default parameter: -m {self.metric_spec}')
+
             self.greedy.run_reg(
                 img_fix = fn_img_fix,
                 img_mov = fn_img_mov,
@@ -340,7 +366,9 @@ class Propagator:
                 regout_deform = fn_regout_deform,
                 regout_deform_inv = fn_regout_deform_inv,
                 reference_image = fn_reference_frame,
-                mask_fix = mask_fix
+                mask_fix = mask_fix,
+                multi_res_schedule = self.multi_res_schedule,
+                metric_spec = self.metric_spec
             )
             perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
             timepoint1 = time.time()
@@ -390,8 +418,8 @@ class Propagator:
     def __propagation_helper(self, work_dir, crnt_ind, mask_init, \
         warp_str_array, mask_ref_srs, mask_ref_srs_vtk, is_forward = True):
         """
-            Run propagation in one direction (forward or backward), with
-            downsampled images
+            Run propagation in one direction (forward or backward), 
+            with downsampled images
         """
 
         fref = self.fref
@@ -454,35 +482,3 @@ class Propagator:
             img_reslice = fn_mask_init_reslice_vtk,
             reg_affine = warp_str_array[crnt_ind]
         )
-
-        
-       #def vtk_replace_stripes(fnmesh, polyData):
-       #    """
-       #    Replace mesh with polyData stripes
-       #    """
-       #    data = vtk_read_polydata(fnmesh)
-       #    data.SetStrips(polyData.GetStrips())
-       #    vtk_write_polydata(fnmesh, data)
-
-       #def vtk_write_polydata(fn, data):
-       #    """
-       #    Write data to vtk mesh file
-       #    """
-       #    writer = vtk.vtkPolyDataWriter()
-       #    writer.SetFileName(fn)
-       #    writer.SetInputData(data)
-       #    writer.Write()
-
-       #def vtk_read_polydata(fn):
-       #    """
-       #    Read vtk polydata from .vtk file
-       #    """
-       #    reader = vtk.vtkPolyDataReader()
-       #    reader.SetFileName(fn)
-       #    reader.Update()
-       #    return reader.GetOutput()
-        
-
-
-
-
