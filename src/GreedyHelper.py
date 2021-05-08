@@ -6,7 +6,7 @@ class GreedyHelper:
 
     def run_reg(self, img_fix, img_mov, regout_deform_inv, mask_fix, \
         affine_init = '', regout_affine = '', regout_deform = '', reference_image = '', \
-        multi_res_schedule = '100x100', metric_spec = 'SSD'):
+        multi_res_schedule = '100x100', metric_spec = 'SSD', threads = -1):
 
         """
         Make system call to greedy
@@ -31,6 +31,8 @@ class GreedyHelper:
         """
 
         cmdbase = f'{self.greedy} -d 3 '
+        if threads > 0:
+            cmdbase = cmdbase + f'-threads {threads} '
 
         if regout_affine != '' and regout_deform != '':
             # Affine generation

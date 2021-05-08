@@ -18,6 +18,7 @@ class Propagator:
         self.greedy = None
         self.multi_res_schedule = '100x100'
         self.metric_spec = 'SSD'
+        self.threads = -1
 
     def SetInputImage(self, _fnimg):
         self.fnimg = _fnimg
@@ -66,11 +67,18 @@ class Propagator:
 
     def SetMetricSpec(self, _metric_spec):
         """
-            Optional: Set the Metric Specification (-m) parameter value for full
-            resolution greedy registration
+            Optional: Set the Metric Specification (-m) parameter value for 
+            greedy registration
             Default Value: SSD
         """
         self.metric_spec = _metric_spec
+
+    def SetGreedyThreads(self, _threads):
+        """ 
+            Optional: Set the number of threads (-threads) greedy uses for registration
+            Default Value: None (Unspecified)
+        """
+        self.threads = _threads
 
 
     def Run(self):
@@ -368,7 +376,8 @@ class Propagator:
                 reference_image = fn_reference_frame,
                 mask_fix = mask_fix,
                 multi_res_schedule = self.multi_res_schedule,
-                metric_spec = self.metric_spec
+                metric_spec = self.metric_spec,
+                threads = self.threads
             )
             perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
             timepoint1 = time.time()
@@ -395,6 +404,10 @@ class Propagator:
                 reg_affine = mesh_warps
             )
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
+
+            VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
+            print('Mesh point data renamed')
+
             
 
         perflog['Full Res Propagation'] = time.time() - timepoint
@@ -410,10 +423,6 @@ class Propagator:
             oneline = f'{k} : {perflog[k]}'
             print(oneline)
             fLog.write(oneline + '\n')
-
-    
-    
-
 
     def __propagation_helper(self, work_dir, crnt_ind, mask_init, \
         warp_str_array, mask_ref_srs, mask_ref_srs_vtk, is_forward = True):
@@ -450,7 +459,8 @@ class Propagator:
             regout_affine = fn_regout_affine,
             regout_deform = fn_regout_deform,
             regout_deform_inv = fn_regout_deform_inv,
-            mask_fix = mask_init
+            mask_fix = mask_init,
+            threads = self.threads
         )
 
         # Build warp string array recursively
@@ -482,3 +492,29 @@ class Propagator:
             img_reslice = fn_mask_init_reslice_vtk,
             reg_affine = warp_str_array[crnt_ind]
         )
+
+class VTKHelper:
+    @staticmethod
+    def RenamePointData(fnMesh, newName):
+        """A helper method that renames the point data array of a mesh"""
+        _, x = os.path.splitext(fnMesh)
+        assert(x == '.vtk')
+
+        # Read vtk file
+        reader = vtk.vtkPolyDataReader()
+        reader.SetFileName(fnMesh)
+        reader.Update()
+        
+        # Extract point data
+        polyData = reader.GetOutput()
+        pointData = polyData.GetPointData()
+
+        # Extract the scalar array and set a new name
+        scalarArr = pointData.GetScalars()
+        scalarArr.SetName(newName)
+
+        # Export and override existing file
+        writer = vtk.vtkPolyDataWriter()
+        writer.SetFileName(fnMesh)
+        writer.SetInputData(polyData)
+        writer.Update()
