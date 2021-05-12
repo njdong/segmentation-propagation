@@ -1,8 +1,6 @@
 import os
 import vtk
 import time
-import shutil
-from LogManager import LogManager
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
 
