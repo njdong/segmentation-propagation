@@ -27,6 +27,9 @@ p.SetGreedyLocation(os.path.join(workdir, "greedy"))
 p.SetVtkLevelSetLocation(os.path.join(workdir, "vtklevelset"))
 p.SetTargetFrames(targetFrame)
 p.SetOutputDir(os.path.join(workdir, "out"))
+p.SetSmoothingNumberOfIteration(35)
+p.SetSmoothingPassband(0.05)
+
 ### Optional Parameters for testing purpose
 p.SetFullResIterations('100x20')
 p.SetGreedyThreads(6)

@@ -19,6 +19,8 @@ class Propagator:
         self.multi_res_schedule = '100x100'
         self.metric_spec = 'SSD'
         self.threads = -1
+        self.smoothingIter = 30
+        self.smoothingPassband = 0.1
 
     def SetInputImage(self, _fnimg):
         self.fnimg = _fnimg
@@ -46,14 +48,14 @@ class Propagator:
     def SetGreedyLocation(self, _greedyLoc):
         """
             Optional: Set the specific version of greedy for the propagation
-            By default the propagator will run greedy from the path
+            Default: run greedy from the path
         """
         self.greedyLocation = _greedyLoc
 
     def SetVtkLevelSetLocation(self, _vtklevelsetLoc):
         """
             Optional: Set the specific version of vtklevelset for the propagation
-            By default the propagator will run vtklevelset from the path
+            Default: run vtklevelset from the path
         """
         self.vtklevelsetLocation = _vtklevelsetLoc
 
@@ -61,7 +63,7 @@ class Propagator:
         """
             Optional: Set the Multi-Resolution Schedule (-n) parameter value for 
             full resolution greedy registration
-            Default Value: 100x100
+            Default: 100x100
         """
         self.multi_res_schedule = _iter
 
@@ -69,16 +71,31 @@ class Propagator:
         """
             Optional: Set the Metric Specification (-m) parameter value for 
             greedy registration
-            Default Value: SSD
+            Default: SSD
         """
         self.metric_spec = _metric_spec
 
     def SetGreedyThreads(self, _threads):
         """ 
             Optional: Set the number of threads (-threads) greedy uses for registration
-            Default Value: None (Unspecified)
+            Default: None (Unspecified)
         """
         self.threads = _threads
+
+    def SetSmoothingNumberOfIteration(self, _iter):
+        """
+            Optional: Set number of iteration for taubin smoothing on mesh
+            Default: 30
+        """
+        self.smoothingIter = _iter
+
+    def SetSmoothingPassband(self, _passBand):
+        """
+            Optional: Set passband for taubin smoothing on mesh
+            Type: double between 0 and 2
+            Default: 0.1
+        """
+        self.smoothingPassband = _passBand
 
 
     def Run(self):
@@ -191,9 +208,11 @@ class Propagator:
         print("Creating mask mesh...")
         print(cmd)
         os.system(cmd)
+
         # -- make one copy to the out directory with same naming convention as output mesh
-        fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self.tag}_{self.fref}.vtk')
-        shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
+        # (no longer active because mesh smoothing will do this)
+        # shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
+        
 
         # - Create vtk mesh from the dilated mask
         fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.vtk')
@@ -405,10 +424,17 @@ class Propagator:
             )
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
+            # Smooth warped mesh
+            VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self.smoothingIter, self.smoothingPassband)
+            print('Warped mesh smoothed')
+
+            # Rename Point data
             VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
             print('Mesh point data renamed')
 
-            
+        # Smooth reference mesh
+        fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self.tag}_{self.fref}.vtk')
+        VTKHelper.SmoothMeshTaubin(fn_mask_ref_vtk, fn_seg_ref_vtk, self.smoothingIter, self.smoothingPassband)
 
         perflog['Full Res Propagation'] = time.time() - timepoint
 
@@ -518,3 +544,51 @@ class VTKHelper:
         writer.SetFileName(fnMesh)
         writer.SetInputData(polyData)
         writer.Update()
+
+    @staticmethod
+    def SmoothMeshTaubin(fnMeshIn, fnMeshOut, numIter, passBand):
+        """
+            A helper method smoothes mesh using vtkWindowedSincPolyDataFilter
+            From https://vtk.org/doc/nightly/html/classvtkWindowedSincPolyDataFilter.html#details
+            ...
+            " The total smoothing can be controlled by using two ivars. 
+
+            The NumberOfIterations determines the maximum number of smoothing passes. The NumberOfIterations corresponds 
+            to the degree of the polynomial that is used to approximate the windowed sinc function. Ten or twenty iterations 
+            is all the is usually necessary. Contrast this with vtkSmoothPolyDataFilter which usually requires 100 to 200 
+            smoothing iterations. vtkSmoothPolyDataFilter is also not an approximation to an ideal low-pass filter, which 
+            can cause the geometry to shrink as the amount of smoothing increases.
+
+            The second ivar is the specification of the PassBand for the windowed sinc filter. By design, the PassBand is 
+            specified as a doubling point number between 0 and 2. Lower PassBand values produce more smoothing. A good 
+            default value for the PassBand is 0.1 (for those interested, the PassBand (and frequencies) for PolyData are 
+            based on the valence of the vertices, this limits all the frequency modes in a polyhedral mesh to between 0 and 2.)"
+        """
+        _, x = os.path.splitext(fnMeshIn)
+        assert(x == '.vtk')
+        _, x = os.path.splitext(fnMeshOut)
+        assert(x == '.vtk')
+
+        print(f'Mesh Smoothing: iter={numIter}, passBand={passBand}, Input:{fnMeshIn}, Output:{fnMeshOut}')
+
+        # Read mesh input
+        polyRdr = vtk.vtkPolyDataReader()
+        polyRdr.SetFileName(fnMeshIn)
+        polyRdr.Update()
+        polyData = polyRdr.GetOutput()
+
+        # Smooth
+        sm = vtk.vtkWindowedSincPolyDataFilter()
+        sm.SetInputData(polyData)
+        sm.SetBoundarySmoothing(False)
+        sm.SetNonManifoldSmoothing(False)
+        sm.SetNormalizeCoordinates(True)
+        sm.SetNumberOfIterations(numIter)
+        sm.SetPassBand(passBand)
+        sm.Update()
+
+        # Write mesh output
+        polyWtr = vtk.vtkPolyDataWriter()
+        polyWtr.SetFileName(fnMeshOut)
+        polyWtr.SetInputData(sm.GetOutput())
+        polyWtr.Write()
