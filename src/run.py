@@ -31,7 +31,8 @@ p.SetSmoothingNumberOfIteration(35)
 p.SetSmoothingPassband(0.05)
 
 ### Optional Parameters for testing purpose
-p.SetFullResIterations('100x20')
+p.SetFullResIterations('20x10x1')
+p.SetDilatedResIteration('20x10x1')
 p.SetGreedyThreads(6)
 
 
@@ -39,5 +40,12 @@ p.SetGreedyThreads(6)
 p.Run()
 
 # Add additional mesh
+# -- Mesh can also be added before regular Run()
+# -- In that case meshes will be warped together with the propagation
 p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'))
 p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'))
+p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'))
+p.GetWarpingList()
+p.RemoveMeshFromWarp('c')
+p.GetWarpingList()
+p.RunMeshWarp()

@@ -14,13 +14,15 @@ class Propagator:
         self._greedyLocation = "greedy"
         self._vtklevelsetLocation = "vtklevelset"
         self._greedy = None
-        self._multi_res_schedule = '100x100'
+        self._fullResIteration = '100x100'
+        self._dilatedResIteration = '100x100'
         self._metric_spec = 'SSD'
         self._threads = -1
         self._smoothingIter = 30
         self._smoothingPassband = 0.1
         self._meshWarpingList = {}
         self._isRegCompleted = False
+        
 
     def SetInputImage(self, _fnimg):
         self._fnimg = _fnimg
@@ -65,7 +67,15 @@ class Propagator:
             full resolution greedy registration
             Default: 100x100
         """
-        self._multi_res_schedule = _iter
+        self._fullResIteration = _iter
+
+    def SetDilatedResIteration(self, _iter):
+        """
+            Optional: Set the Multi-Resolution Schedule (-n) parameter value for
+            dilated (forward & backward) greedy registration
+            Default: 100x100
+        """
+        self._dilatedResIteration = _iter
 
     def SetMetricSpec(self, _metric_spec):
         """
@@ -97,7 +107,7 @@ class Propagator:
         """
         self._smoothingPassband = _passBand
 
-    def AddMeshToWarp(self,_id, _fnmesh):
+    def AddMeshToWarp(self, _id, _fnmesh):
         """
             Add additional mesh to be warped using the registration matrices
             _fnmesh: filename of the original mesh
@@ -156,7 +166,7 @@ class Propagator:
 
 
     def __propagate(self, meshWarpingMode = False):
-        #__propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref = 0)
+        #__propagate(fnimg, outdir = "", tag = "", seg_ref = "", self._targetFrames = [], fref = 0)
 
         """
         INPUTS:
@@ -167,7 +177,7 @@ class Propagator:
         - outdir: Name of existing directory for output files
         - tag: Study Identifier (e.g., 'bav08_root')
         - seg_ref: Filename of reference segmentation (nii)
-        - framenums: List of frame numbers to propagate segementation to
+        - self._targetFrames: List of frame numbers to propagate segementation to
         - fref: Reference segmentation frame
 
         Use full paths for all filenames.
@@ -235,6 +245,11 @@ class Propagator:
         perflog = {}
         timepoint = time.time()
 
+        tag = self._tag
+        fref = self._fref
+        ref_ind = self._targetFrames.index(fref)
+
+
         if not meshWarpingMode:
             image = None
             
@@ -288,13 +303,10 @@ class Propagator:
             # CartesianDicom.Export4D(os.path.join(outdir, 'img4D.nii.gz'))
             # Parallelizable
 
-            framenums = self._targetFrames
-            tag = self._tag
-            fref = self._fref
-
+            
             timepoint = time.time()
             
-            for i in framenums:
+            for i in self._targetFrames:
                 fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
                 fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
                 image.ExportFrame(i, fnImg)
@@ -307,9 +319,7 @@ class Propagator:
             
             
             # Initialize warp string array
-            warp_str_array = [''] * len(framenums)
-
-            ref_ind = framenums.index(fref)
+            warp_str_array = [''] * len(self._targetFrames)
             
             # Propagate Forward
             print('---------------------------------')
@@ -318,12 +328,12 @@ class Propagator:
 
             timepoint = time.time()
 
-            for i in range(ref_ind, len(framenums) - 1):
-                fCrnt = framenums[i]
-                fNext = framenums[i + 1]
-                fPrev = framenums[i - 1]
+            for i in range(ref_ind, len(self._targetFrames) - 1):
+                fCrnt = self._targetFrames[i]
+                fNext = self._targetFrames[i + 1]
+                fPrev = self._targetFrames[i - 1]
 
-                print('Current Frame: ', framenums[i])
+                print('Current Frame: ', self._targetFrames[i])
 
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
@@ -349,14 +359,14 @@ class Propagator:
             print('---------------------------------')
 
             # - Clean up warp str array
-            warp_str_array = [''] * len(framenums)
+            warp_str_array = [''] * len(self._targetFrames)
 
             for i in range(ref_ind, 0, -1):
-                fCrnt = framenums[i]
-                fNext = framenums[i - 1]
-                fPrev = framenums[i + 1] if fCrnt != fref else -1
+                fCrnt = self._targetFrames[i]
+                fNext = self._targetFrames[i - 1]
+                fPrev = self._targetFrames[i + 1] if fCrnt != fref else -1
 
-                print('Current Frame: ', framenums[i])
+                print('Current Frame: ', self._targetFrames[i])
 
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
@@ -376,13 +386,13 @@ class Propagator:
             timepoint = time.time()
 
         # Propagate in Full Resolution
-        
-        print('---------------------------------')
-        print('Propagating in Full Resolution: ')
-        print('---------------------------------')
+        if not meshWarpingMode:
+            print('---------------------------------')
+            print('Propagating in Full Resolution: ')
+            print('---------------------------------')
 
-        for i in range(0, len(framenums)):
-            fCrnt = framenums[i]
+        for i in range(0, len(self._targetFrames)):
+            fCrnt = self._targetFrames[i]
             print('Processing frame: ', fCrnt)
             
             if fCrnt == fref:
@@ -396,22 +406,22 @@ class Propagator:
             affine_warps_pts = ''
 
             if i > ref_ind:
-                fPrev = framenums[i - 1]
+                fPrev = self._targetFrames[i - 1]
 
                 for j in range (ref_ind + 1, i + 1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{framenums[j]}_to_{framenums[j - 1]}_srs_init.mat'
+                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j - 1]}_srs_init.mat'
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
             else:
-                fPrev = framenums[i + 1]
+                fPrev = self._targetFrames[i + 1]
 
                 for j in range (ref_ind - 1, i - 1, -1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{framenums[j]}_to_{framenums[j + 1]}_srs_init.mat'
+                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j + 1]}_srs_init.mat'
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
 
-            print("affine_warps: ", affine_warps)
-            print("affine_warps_pts: ", affine_warps_pts)
+            #print("affine_warps: ", affine_warps)
+            #print("affine_warps_pts: ", affine_warps_pts)
 
             # output file location
             fn_seg_reslice = f'{self._outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
@@ -440,8 +450,8 @@ class Propagator:
                 timepoint1 = time.time()
 
                 print('Running Full Res Registration...')
-                if self._multi_res_schedule != '100x100':
-                    print(f'Using non-default parameters: -n {self._multi_res_schedule}')
+                if self._fullResIteration != '100x100':
+                    print(f'Using non-default parameters: -n {self._fullResIteration}')
                 if self._metric_spec != 'SSD':
                     print(f'Using non-default parameter: -m {self._metric_spec}')
 
@@ -453,7 +463,7 @@ class Propagator:
                     regout_deform_inv = fn_regout_deform_inv,
                     reference_image = fn_reference_frame,
                     mask_fix = mask_fix,
-                    multi_res_schedule = self._multi_res_schedule,
+                    multi_res_schedule = self._fullResIteration,
                     metric_spec = self._metric_spec,
                     threads = self._threads
                 )
@@ -471,7 +481,8 @@ class Propagator:
                     reg_deform = fn_regout_deform
                 )
                 perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
-                timepoint1 = time.time()
+
+            timepoint1 = time.time()
 
             print('Applying warp to meshes...')
             mesh_warps = affine_warps_pts + fn_regout_deform_inv
@@ -543,15 +554,15 @@ class Propagator:
         """
 
         fref = self._fref
-        framenums = self._targetFrames
+        self._targetFrames = self._targetFrames
         tag = self._tag
 
 
         # forward propagation is in incremental order, backward is the reverse
         next_ind = crnt_ind + 1 if is_forward else crnt_ind - 1
 
-        fCrnt = framenums[crnt_ind]
-        fNext = framenums[next_ind]
+        fCrnt = self._targetFrames[crnt_ind]
+        fNext = self._targetFrames[next_ind]
         
         # current dilated image as fix
         fn_img_fix = f'{work_dir}/img_{fCrnt}_{tag}_srs.nii.gz'
@@ -571,6 +582,8 @@ class Propagator:
             regout_deform = fn_regout_deform,
             regout_deform_inv = fn_regout_deform_inv,
             mask_fix = mask_init,
+            metric_spec=self._metric_spec,
+            multi_res_schedule=self._dilatedResIteration,
             threads = self._threads
         )
 
@@ -604,7 +617,7 @@ class Propagator:
             reg_affine = warp_str_array[crnt_ind]
         )
 
-    def __validateArtifacts():
+    def __validateArtifacts(self):
         """Private method validating whether all files from propagation has been generated correctly"""
         return True
 
