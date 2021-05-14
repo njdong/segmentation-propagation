@@ -1,45 +1,45 @@
 import os
 import vtk
 import time
-import shutil
-from LogManager import LogManager
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
 
 class Propagator:
     def __init__(self):
         # set default values
-        self.fnimg = ""
-        self.tag = "default"
-        self.fref = -1
-        self.outdir = "./out"
-        self.greedyLocation = "greedy"
-        self.vtklevelsetLocation = "vtklevelset"
-        self.greedy = None
-        self.multi_res_schedule = '100x100'
-        self.metric_spec = 'SSD'
-        self.threads = -1
-        self.smoothingIter = 30
-        self.smoothingPassband = 0.1
+        self._fnimg = ""
+        self._tag = "default"
+        self._fref = -1
+        self._outdir = "./out"
+        self._greedyLocation = "greedy"
+        self._vtklevelsetLocation = "vtklevelset"
+        self._greedy = None
+        self._multi_res_schedule = '100x100'
+        self._metric_spec = 'SSD'
+        self._threads = -1
+        self._smoothingIter = 30
+        self._smoothingPassband = 0.1
+        self._meshWarpingList = {}
+        self._isRegCompleted = False
 
     def SetInputImage(self, _fnimg):
-        self.fnimg = _fnimg
+        self._fnimg = _fnimg
 
     def SetTag(self, _tag):
-        self.tag = _tag
+        self._tag = _tag
 
     def SetOutputDir(self, _outdir):
-        self.outdir = _outdir
+        self._outdir = _outdir
 
     def SetReferenceSegmentation(self, _fnsegref):
-        self.fnsegref = _fnsegref
+        self._fnsegref = _fnsegref
     
     def SetReferenceFrameNumber(self, _fref):
-        self.fref = _fref
+        self._fref = _fref
     
     def SetTargetFrames(self, _fnums):
         """Overrides existing target frames"""
-        self.targetFrames = _fnums
+        self._targetFrames = _fnums
 
     def SetTargetFrameRanges(self, _frange):
         """Overrides existing target frames"""
@@ -50,14 +50,14 @@ class Propagator:
             Optional: Set the specific version of greedy for the propagation
             Default: run greedy from the path
         """
-        self.greedyLocation = _greedyLoc
+        self._greedyLocation = _greedyLoc
 
     def SetVtkLevelSetLocation(self, _vtklevelsetLoc):
         """
             Optional: Set the specific version of vtklevelset for the propagation
             Default: run vtklevelset from the path
         """
-        self.vtklevelsetLocation = _vtklevelsetLoc
+        self._vtklevelsetLocation = _vtklevelsetLoc
 
     def SetFullResIterations(self, _iter):
         """
@@ -65,7 +65,7 @@ class Propagator:
             full resolution greedy registration
             Default: 100x100
         """
-        self.multi_res_schedule = _iter
+        self._multi_res_schedule = _iter
 
     def SetMetricSpec(self, _metric_spec):
         """
@@ -73,21 +73,21 @@ class Propagator:
             greedy registration
             Default: SSD
         """
-        self.metric_spec = _metric_spec
+        self._metric_spec = _metric_spec
 
     def SetGreedyThreads(self, _threads):
         """ 
             Optional: Set the number of threads (-threads) greedy uses for registration
             Default: None (Unspecified)
         """
-        self.threads = _threads
+        self._threads = _threads
 
     def SetSmoothingNumberOfIteration(self, _iter):
         """
             Optional: Set number of iteration for taubin smoothing on mesh
             Default: 30
         """
-        self.smoothingIter = _iter
+        self._smoothingIter = _iter
 
     def SetSmoothingPassband(self, _passBand):
         """
@@ -95,8 +95,54 @@ class Propagator:
             Type: double between 0 and 2
             Default: 0.1
         """
-        self.smoothingPassband = _passBand
+        self._smoothingPassband = _passBand
 
+    def AddMeshToWarp(self,_id, _fnmesh):
+        """
+            Add additional mesh to be warped using the registration matrices
+            _fnmesh: filename of the original mesh
+            _id: Identifier to be added to the warped mesh
+        """
+        if _id == '':
+            print('Empty string id is reserved for original reference mesh. Please use another id!')
+            return
+        
+        if _id in self._meshWarpingList:
+            print(f'Overriding existing mesh id = {_id} filename = {self._meshWarpingList[_id]} with new mesh')
+
+        self._meshWarpingList[_id] = _fnmesh
+
+    def RemoveMeshFromWarp(self, _id):
+        """
+            Remove mesh with specified id from the warping list
+        """
+        if _id == '':
+            print('Empty string id is reserved for original reference mesh and it cannot be removed!')
+            return
+
+        if _id not in self._meshWarpingList:
+            print(f'Mesh with id {_id} does not exist in the warping list')
+            return
+        
+        del self._meshWarpingList[_id]
+
+    def GetWarpingList(self):
+        """
+            Return and print the warping list
+        """
+        for id in self._meshWarpingList:
+            print(f'id: "{id}", filename: "{self._meshWarpingList[id]}"')
+
+        return self._meshWarpingList
+
+    def RunMeshWarp(self):
+        """
+            Run mesh warp without registration
+        """
+        self.__propagate(meshWarpingMode=True)
+        print("Mesh Warping completed!")
+
+        
 
     def Run(self):
         self.__propagate()
@@ -105,11 +151,11 @@ class Propagator:
 
     def __parseFrameRangeArray(self, rangeArr):
         # todo: replace the placeholder
-        self.targetFrames = []
+        self._targetFrames = []
 
 
 
-    def __propagate(self):
+    def __propagate(self, meshWarpingMode = False):
         #__propagate(fnimg, outdir = "", tag = "", seg_ref = "", framenums = [], fref = 0)
 
         """
@@ -137,27 +183,42 @@ class Propagator:
         - Extract and dialate 3D frame from the 4D image
 
         """
+        # Validate files for the meshWarpingMode
+        if meshWarpingMode:
+            if not self._isRegCompleted:
+                print('Full propagation has not been run yet. Please run propagation before warping meshes.')
+                print('Mesh Warping terminated')
+                return
+            
+            if not self.__validateArtifacts():
+                print('Files generated by propagation are needed. \
+                    Please rerun propagation before warping meshes.')
+                return
+
+            print('Propagation is running in Mesh Warping Mode!')
+            
+
         # Initialize Greedy Helper
-        self.greedy = GreedyHelper(self.greedyLocation)
+        self._greedy = GreedyHelper(self._greedyLocation)
 
         # Validate Input Parameters
-        if (self.fnimg == ""):
+        if (self._fnimg == ""):
             raise RuntimeError("Input Image not set!")
-        if (len(self.targetFrames) == 0):
+        if (len(self._targetFrames) == 0):
             raise RuntimeError("Target Frames not set!")
-        if (self.fref == -1):
+        if (self._fref == -1):
             raise RuntimeError("Reference Frame Number not set!")
-        if (self.fref not in self.targetFrames):
+        if (self._fref not in self._targetFrames):
             # always including reference frame in the target frame
-            self.targetFrames.append(self.fref)
-            self.targetFrames.sort()
+            self._targetFrames.append(self._fref)
+            self._targetFrames.sort()
             print('Reference frame added to target frames')
 
         # create output directories
-        meshdir = os.path.join(self.outdir, 'mesh')
-        if not os.path.exists(self.outdir):
+        meshdir = os.path.join(self._outdir, 'mesh')
+        if not os.path.exists(self._outdir):
             # directory for output
-            os.mkdir(self.outdir)
+            os.mkdir(self._outdir)
             # subdirectory for mesh outputs
             os.mkdir(meshdir)
 
@@ -165,7 +226,7 @@ class Propagator:
         if not os.path.exists(meshdir):
             os.mkdir(meshdir)
 
-        tmpdir = os.path.join(self.outdir, "tmp")
+        tmpdir = os.path.join(self._outdir, "tmp")
 
         if not os.path.exists(tmpdir):
             os.mkdir(tmpdir)
@@ -174,145 +235,145 @@ class Propagator:
         perflog = {}
         timepoint = time.time()
 
-        image = None
-        
-        # parse image type
-        if self.fnimg.lower().endswith('.dcm'):
-            print('Reading dicom image...')
-            # Use the Dicom4D reader to create an Image4D object
-            image = Image4D(self.fnimg, 'dicom')
-            perflog['Dicom Loading'] = time.time() - timepoint
-        elif self.fnimg.lower().endswith(('.nii.gz', '.nii')):
-            print('Reading NIfTI image...')
-            image = Image4D(self.fnimg, 'nifti')
-            # Use the NIfTI reader to create an Image4D object
-            perflog['NIfTI Loading'] = time.time() - timepoint
-        else:
-            print('Unknown image file type')
-            return
-
-        
-
-        # Process reference segmentation
-        # - Dilate the reference segmentation (mask)
-        fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.nii.gz')
-        cmd = f'c3d -int 0 {self.fnsegref} -threshold 1 inf 1 0 \
-            -dilate 1 10x10x10vox -resample 50% -o {fn_mask_ref_srs}'
-        print("Dilating reference segmentation...")
-        print(cmd)
-        os.system(cmd)
-
-        # - Create vtk mesh
-        fn_mask_ref_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}.vtk')
-        cmd = f'{self.vtklevelsetLocation} -pl {self.fnsegref} {fn_mask_ref_vtk} 1'
-        print("Creating mask mesh...")
-        print(cmd)
-        os.system(cmd)
-
-        # -- make one copy to the out directory with same naming convention as output mesh
-        # (no longer active because mesh smoothing will do this)
-        # shutil.copyfile(fn_mask_ref_vtk, fn_seg_ref_vtk)
-        
-
-        # - Create vtk mesh from the dilated mask
-        fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{self.fref}_{self.tag}_srs.vtk')
-        cmd = f"{self.vtklevelsetLocation} -pl {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
-        print("Creating dilated mask mesh...")
-        print(cmd)
-        os.system(cmd)
-
-
-
-        # Export 3D Frames
-        # CartesianDicom.Export4D(os.path.join(outdir, 'img4D.nii.gz'))
-        # Parallelizable
-
-        framenums = self.targetFrames
-        tag = self.tag
-        fref = self.fref
-
-        timepoint = time.time()
-        
-        for i in framenums:
-            fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
-            fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
-            image.ExportFrame(i, fnImg)
+        if not meshWarpingMode:
+            image = None
             
-            cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
+            # parse image type
+            if self._fnimg.lower().endswith('.dcm'):
+                print('Reading dicom image...')
+                # Use the Dicom4D reader to create an Image4D object
+                image = Image4D(self._fnimg, 'dicom')
+                perflog['Dicom Loading'] = time.time() - timepoint
+            elif self._fnimg.lower().endswith(('.nii.gz', '.nii')):
+                print('Reading NIfTI image...')
+                image = Image4D(self._fnimg, 'nifti')
+                # Use the NIfTI reader to create an Image4D object
+                perflog['NIfTI Loading'] = time.time() - timepoint
+            else:
+                print('Unknown image file type')
+                return
+
+            
+
+            # Process reference segmentation
+            # - Dilate the reference segmentation (mask)
+            fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}_srs.nii.gz')
+            cmd = f'c3d -int 0 {self._fnsegref} -threshold 1 inf 1 0 \
+                -dilate 1 10x10x10vox -resample 50% -o {fn_mask_ref_srs}'
+            print("Dilating reference segmentation...")
             print(cmd)
             os.system(cmd)
+
+            # - Create vtk mesh
+            fn_mask_ref_vtk = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}.vtk')
+            cmd = f'{self._vtklevelsetLocation} -pl {self._fnsegref} {fn_mask_ref_vtk} 1'
+            print("Creating mask mesh...")
+            print(cmd)
+            os.system(cmd)
+
+            # - add mesh to the meshWarpingList
+            self._meshWarpingList[''] = fn_mask_ref_vtk
         
-        perflog['Export 3D Frames'] = time.time() - timepoint
-        
-        
-        # Initialize warp string array
-        warp_str_array = [''] * len(framenums)
 
-        ref_ind = framenums.index(fref)
-        
-        # Propagate Forward
-        print('---------------------------------')
-        print('Propagating forward')
-        print('---------------------------------')
+            # - Create vtk mesh from the dilated mask
+            fn_mask_ref_srs_vtk = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}_srs.vtk')
+            cmd = f"{self._vtklevelsetLocation} -pl {fn_mask_ref_srs} {fn_mask_ref_srs_vtk} 1"
+            print("Creating dilated mask mesh...")
+            print(cmd)
+            os.system(cmd)
 
-        timepoint = time.time()
 
-        for i in range(ref_ind, len(framenums) - 1):
-            fCrnt = framenums[i]
-            fNext = framenums[i + 1]
-            fPrev = framenums[i - 1]
 
-            print('Current Frame: ', framenums[i])
+            # Export 3D Frames
+            # CartesianDicom.Export4D(os.path.join(outdir, 'img4D.nii.gz'))
+            # Parallelizable
 
-            if fCrnt == fref:
-                fn_mask_init = fn_mask_ref_srs
-            else:
-                fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+            framenums = self._targetFrames
+            tag = self._tag
+            fref = self._fref
 
+            timepoint = time.time()
             
-            self.__propagation_helper(
-                work_dir = tmpdir,
-                crnt_ind = i,
-                is_forward = True,
-                mask_init = fn_mask_init,
-                warp_str_array = warp_str_array,
-                mask_ref_srs = fn_mask_ref_srs,
-                mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
+            for i in framenums:
+                fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
+                fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
+                image.ExportFrame(i, fnImg)
+                
+                cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
+                print(cmd)
+                os.system(cmd)
             
-        perflog['Forward Propagation'] = time.time() - timepoint
-        timepoint = time.time()
+            perflog['Export 3D Frames'] = time.time() - timepoint
+            
+            
+            # Initialize warp string array
+            warp_str_array = [''] * len(framenums)
 
-        # Propagate Backward
-        print('---------------------------------')
-        print('Propagating backward')
-        print('---------------------------------')
+            ref_ind = framenums.index(fref)
+            
+            # Propagate Forward
+            print('---------------------------------')
+            print('Propagating forward')
+            print('---------------------------------')
 
-        # - Clean up warp str array
-        warp_str_array = [''] * len(framenums)
+            timepoint = time.time()
 
-        for i in range(ref_ind, 0, -1):
-            fCrnt = framenums[i]
-            fNext = framenums[i - 1]
-            fPrev = framenums[i + 1] if fCrnt != fref else -1
+            for i in range(ref_ind, len(framenums) - 1):
+                fCrnt = framenums[i]
+                fNext = framenums[i + 1]
+                fPrev = framenums[i - 1]
 
-            print('Current Frame: ', framenums[i])
+                print('Current Frame: ', framenums[i])
 
-            if fCrnt == fref:
-                fn_mask_init = fn_mask_ref_srs
-            else:
-                fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                if fCrnt == fref:
+                    fn_mask_init = fn_mask_ref_srs
+                else:
+                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
 
-            self.__propagation_helper(
-                work_dir = tmpdir,
-                crnt_ind = i,
-                is_forward = False,
-                mask_init = fn_mask_init,
-                warp_str_array = warp_str_array,
-                mask_ref_srs = fn_mask_ref_srs,
-                mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
-        
-        perflog['Backward Propagation'] = time.time() - timepoint
-        timepoint = time.time()
+                
+                self.__propagation_helper(
+                    work_dir = tmpdir,
+                    crnt_ind = i,
+                    is_forward = True,
+                    mask_init = fn_mask_init,
+                    warp_str_array = warp_str_array,
+                    mask_ref_srs = fn_mask_ref_srs,
+                    mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
+                
+            perflog['Forward Propagation'] = time.time() - timepoint
+            timepoint = time.time()
+
+            # Propagate Backward
+            print('---------------------------------')
+            print('Propagating backward')
+            print('---------------------------------')
+
+            # - Clean up warp str array
+            warp_str_array = [''] * len(framenums)
+
+            for i in range(ref_ind, 0, -1):
+                fCrnt = framenums[i]
+                fNext = framenums[i - 1]
+                fPrev = framenums[i + 1] if fCrnt != fref else -1
+
+                print('Current Frame: ', framenums[i])
+
+                if fCrnt == fref:
+                    fn_mask_init = fn_mask_ref_srs
+                else:
+                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+
+                self.__propagation_helper(
+                    work_dir = tmpdir,
+                    crnt_ind = i,
+                    is_forward = False,
+                    mask_init = fn_mask_init,
+                    warp_str_array = warp_str_array,
+                    mask_ref_srs = fn_mask_ref_srs,
+                    mask_ref_srs_vtk = fn_mask_ref_srs_vtk)
+            
+            perflog['Backward Propagation'] = time.time() - timepoint
+            timepoint = time.time()
 
         # Propagate in Full Resolution
         
@@ -352,93 +413,117 @@ class Propagator:
             print("affine_warps: ", affine_warps)
             print("affine_warps_pts: ", affine_warps_pts)
 
-            
-            # full resolution mask for this frame
-            mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
-            mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
-            print('Generating full res mask...')
-            cmd = f'c3d -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
-            print(cmd)
-            os.system(cmd)
-
-            # trim to generate a reference frame
-            fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
-            cmd = f'c3d {mask_fix} -trim 0vox -o {fn_reference_frame}'
-            print(cmd)
-            os.system(cmd)
-
-            
             # output file location
-            fn_seg_reslice = f'{self.outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
-            fn_seg_reslice_vtk = f'{self.outdir}/mesh/seg_{tag}_{fCrnt}.vtk'
+            fn_seg_reslice = f'{self._outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
+            
 
             # transformation filenames
             fn_regout_deform = f'{tmpdir}/warp_{fref}_to_{fCrnt}.nii.gz'
             fn_regout_deform_inv = f'{tmpdir}/warp_{fref}_to_{fCrnt}_inv.nii.gz'
 
-            # run registration and apply warp
-            timepoint1 = time.time()
+            if not meshWarpingMode:
+                # full resolution mask for this frame
+                mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
+                print('Generating full res mask...')
+                cmd = f'c3d -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
+                print(cmd)
+                os.system(cmd)
 
-            
-            print('Running Full Res Registration...')
-            if self.multi_res_schedule != '100x100':
-                print(f'Using non-default parameters: -n {self.multi_res_schedule}')
-            if self.metric_spec != 'SSD':
-                print(f'Using non-default parameter: -m {self.metric_spec}')
+                # trim to generate a reference frame
+                fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
+                cmd = f'c3d {mask_fix} -trim 0vox -o {fn_reference_frame}'
+                print(cmd)
+                os.system(cmd)
 
-            self.greedy.run_reg(
-                img_fix = fn_img_fix,
-                img_mov = fn_img_mov,
-                affine_init = affine_warps,
-                regout_deform = fn_regout_deform,
-                regout_deform_inv = fn_regout_deform_inv,
-                reference_image = fn_reference_frame,
-                mask_fix = mask_fix,
-                multi_res_schedule = self.multi_res_schedule,
-                metric_spec = self.metric_spec,
-                threads = self.threads
-            )
-            perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
-            timepoint1 = time.time()
+                # run registration and apply warp
+                timepoint1 = time.time()
 
-            print('Applying warp to segmentation...')
-            self.greedy.apply_warp(
-                image_type = 'label',
-                img_fix = fn_img_fix,
-                img_mov = self.fnsegref,
-                img_reslice = fn_seg_reslice,
-                reg_affine = affine_warps,
-                reg_deform = fn_regout_deform
-            )
-            perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
-            timepoint1 = time.time()
+                print('Running Full Res Registration...')
+                if self._multi_res_schedule != '100x100':
+                    print(f'Using non-default parameters: -n {self._multi_res_schedule}')
+                if self._metric_spec != 'SSD':
+                    print(f'Using non-default parameter: -m {self._metric_spec}')
 
-            print('Applying warp to mesh...')
+                self._greedy.run_reg(
+                    img_fix = fn_img_fix,
+                    img_mov = fn_img_mov,
+                    affine_init = affine_warps,
+                    regout_deform = fn_regout_deform,
+                    regout_deform_inv = fn_regout_deform_inv,
+                    reference_image = fn_reference_frame,
+                    mask_fix = mask_fix,
+                    multi_res_schedule = self._multi_res_schedule,
+                    metric_spec = self._metric_spec,
+                    threads = self._threads
+                )
+
+                perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
+                timepoint1 = time.time()
+
+                print('Applying warp to segmentation...')
+                self._greedy.apply_warp(
+                    image_type = 'label',
+                    img_fix = fn_img_fix,
+                    img_mov = self._fnsegref,
+                    img_reslice = fn_seg_reslice,
+                    reg_affine = affine_warps,
+                    reg_deform = fn_regout_deform
+                )
+                perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
+                timepoint1 = time.time()
+
+            print('Applying warp to meshes...')
             mesh_warps = affine_warps_pts + fn_regout_deform_inv
-            self.greedy.apply_warp(
-                image_type = 'mesh',
-                img_fix = fn_img_fix,
-                img_mov = fn_mask_ref_vtk,
-                img_reslice = fn_seg_reslice_vtk,
-                reg_affine = mesh_warps
-            )
+
+            for id in self._meshWarpingList:
+                fnmesh = self._meshWarpingList[id]
+                print(f'Mesh Warping {fnmesh}')
+
+                fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{fCrnt}.vtk')
+                print(f'Output mesh filename: {fn_seg_reslice_vtk}')
+
+
+                self._greedy.apply_warp(
+                    image_type = 'mesh',
+                    img_fix = fn_img_fix,
+                    img_mov = fnmesh,
+                    img_reslice = fn_seg_reslice_vtk,
+                    reg_affine = mesh_warps
+                )
+
+                # Smooth warped mesh
+                VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self._smoothingIter, self._smoothingPassband)
+                print('Warped mesh smoothed')
+
+                # Rename Point data
+                VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
+                print('Mesh point data renamed')
+
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
-            # Smooth warped mesh
-            VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self.smoothingIter, self.smoothingPassband)
-            print('Warped mesh smoothed')
-
-            # Rename Point data
-            VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
-            print('Mesh point data renamed')
-
         # Smooth reference mesh
-        fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self.tag}_{self.fref}.vtk')
-        VTKHelper.SmoothMeshTaubin(fn_mask_ref_vtk, fn_seg_ref_vtk, self.smoothingIter, self.smoothingPassband)
+        for id in self._meshWarpingList:
+            # In mesh warping mode don't double smooth original reference mesh
+            if meshWarpingMode and id == '':
+                continue
+
+            fnmesh = self._meshWarpingList[id]
+
+            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
+            VTKHelper.SmoothMeshTaubin(fnmesh, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
 
         perflog['Full Res Propagation'] = time.time() - timepoint
 
-        fn_perflog = os.path.join(self.outdir, 'perflog.txt')
+        # Validate Artifacts
+        if not meshWarpingMode:
+            if self.__validateArtifacts():
+                self._isRegCompleted = True
+            else:
+                self._isRegCompleted = False
+
+
+        fn_perflog = os.path.join(self._outdir, 'perflog.txt')
 
         if os.path.exists(fn_perflog):
             fLog = open(fn_perflog, 'w')
@@ -457,9 +542,9 @@ class Propagator:
             with downsampled images
         """
 
-        fref = self.fref
-        framenums = self.targetFrames
-        tag = self.tag
+        fref = self._fref
+        framenums = self._targetFrames
+        tag = self._tag
 
 
         # forward propagation is in incremental order, backward is the reverse
@@ -479,14 +564,14 @@ class Propagator:
         fn_regout_deform_inv = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz'
         
         # call greedy to generate transformations
-        self.greedy.run_reg(
+        self._greedy.run_reg(
             img_fix = fn_img_fix,
             img_mov = fn_img_mov,
             regout_affine = fn_regout_affine,
             regout_deform = fn_regout_deform,
             regout_deform_inv = fn_regout_deform_inv,
             mask_fix = mask_init,
-            threads = self.threads
+            threads = self._threads
         )
 
         # Build warp string array recursively
@@ -502,7 +587,7 @@ class Propagator:
 
         # call greedy applying warp
         print('Applying warp to label...')
-        self.greedy.apply_warp(
+        self._greedy.apply_warp(
             image_type = 'label',
             img_fix = fn_img_mov,
             img_mov = mask_ref_srs,
@@ -511,13 +596,17 @@ class Propagator:
         )
 
         print('Applying warp to mesh...')
-        self.greedy.apply_warp(
+        self._greedy.apply_warp(
             image_type = 'mesh',
             img_fix = fn_img_mov,
             img_mov = mask_ref_srs_vtk,
             img_reslice = fn_mask_init_reslice_vtk,
             reg_affine = warp_str_array[crnt_ind]
         )
+
+    def __validateArtifacts():
+        """Private method validating whether all files from propagation has been generated correctly"""
+        return True
 
 class VTKHelper:
     @staticmethod

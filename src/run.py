@@ -37,3 +37,7 @@ p.SetGreedyThreads(6)
 
 # Run propagation
 p.Run()
+
+# Add additional mesh
+p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'))
+p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'))
