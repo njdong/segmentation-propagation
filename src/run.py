@@ -10,7 +10,7 @@ p = Propagator()
 fnimg = os.path.join(workdir, "test/bavcta001/img4d__bavcta001_trim.nii.gz")
 fnseg = os.path.join(workdir, "test/bavcta001/seg03_bavcta001_trim.nii.gz")
 fref = 3
-targetFrame = [1,3]
+targetFrame = [1,2,3,4,5,6,7]
 
 # bav07
 # fnimg = os.path.join(workdir, "test/bav07_dcm/bav07.dcm")
@@ -30,22 +30,29 @@ p.SetOutputDir(os.path.join(workdir, "out"))
 p.SetSmoothingNumberOfIteration(35)
 p.SetSmoothingPassband(0.05)
 
+# Add additional mesh to warp
+p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'))
+p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'))
+p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'))
+
 ### Optional Parameters for testing purpose
-p.SetFullResIterations('20x10x1')
-p.SetDilatedResIteration('20x10x1')
-p.SetGreedyThreads(6)
+#p.SetFullResIterations('20x10x1')
+#p.SetDilatedResIteration('20x10x1')
+#p.SetGreedyThreads(6)
 
 
 # Run propagation
 p.Run()
 
+# or Run MeshWarping Only
+#p.RunMeshWarp()
+
 # Add additional mesh
 # -- Mesh can also be added before regular Run()
 # -- In that case meshes will be warped together with the propagation
-p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'))
-p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'))
-p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'))
+"""
 p.GetWarpingList()
 p.RemoveMeshFromWarp('c')
 p.GetWarpingList()
 p.RunMeshWarp()
+"""
