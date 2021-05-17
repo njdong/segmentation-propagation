@@ -69,7 +69,7 @@ class GreedyHelper:
 
             print('greedy_call (deformable): ', def_cmd)
             os.system(def_cmd)
-            print('greedy_call: Affine + Deformable registration computed!')
+            #print('greedy_call: Affine + Deformable registration computed!')
 
         elif regout_affine == '' and regout_deform != '':
             if regout_deform_inv != '':
@@ -86,10 +86,10 @@ class GreedyHelper:
                         -s 3mm 1.5mm \
                         -o {regout_deform} \
                         -oinv {regout_deform_inv}'
-                    print('Initialized with input affine transform')
+                    #print('Initialized with input affine transform')
                     print('greedy_call: ', cmd)
                     os.system(cmd)
-                    print('greedy_call: Only deformable registration computed!')
+                    #print('greedy_call: Only deformable registration computed!')
         
                 
     def apply_warp(self, image_type, img_fix, img_mov, img_reslice, \
@@ -133,4 +133,4 @@ class GreedyHelper:
 
         print('apply_warp: ', cmd)
         os.system(cmd)
-        print('apply_warp: Affine + Deformable transformation applied!')
+        #print('apply_warp: Affine + Deformable transformation applied!')
