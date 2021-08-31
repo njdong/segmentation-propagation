@@ -40,11 +40,15 @@ p.SetTargetFrames(targetFrame)
 # -- Output directory for results and itermediate files
 p.SetOutputDir(os.path.join(workdir, "out"))
 
-# -- Add aditional mesh to warp
+## Add additional mesh to warp
+##  parameters: 
+##    id: (string) identifier of the mesh. used for list update and deletion, and naming of the file
+##    filename: (string) the file path of the mesh
+##    smooth: (boolean) indicating if mesh to be smoothed
 """Reference mesh with empty string identifier is added by default and cannot be removed"""
-p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'))
-p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'))
-p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'))
+p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'), True)
+p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'), False)
+p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'), False)
 
 ## check list of meshes to be warped
 #p.GetWarpingList()
