@@ -99,3 +99,5 @@ p.Run(MeshWarpOnly = True)
 - czi-74: Added mesh point data renaming logic; Added multiple options for configure greedy.
 - czi-76: Added Mesh Warping feature; Added run mode that can warp multiple meshes using existing
           registration matrices without running registration again.
+### Version 1.2.1
+- czi-105: Added flag to control smoothing for added mesh to warp

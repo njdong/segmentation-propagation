@@ -23,6 +23,12 @@ class Propagator:
         self._meshWarpingList = {}
         self._isRegCompleted = False
         
+    class MeshListItem:
+        def __init__(self, filename, smooth):
+            # file path of the mesh
+            self._filename = filename
+            # flat indicating if mesh to be smoothed after warping
+            self._smooth = smooth
 
     def SetInputImage(self, _fnimg):
         self._fnimg = _fnimg
@@ -107,7 +113,7 @@ class Propagator:
         """
         self._smoothingPassband = _passBand
 
-    def AddMeshToWarp(self, _id, _fnmesh):
+    def AddMeshToWarp(self, _id, _fnmesh, _smoothMesh):
         """
             Add additional mesh to be warped using the registration matrices
             _fnmesh: filename of the original mesh
@@ -118,9 +124,10 @@ class Propagator:
             return
         
         if _id in self._meshWarpingList:
-            print(f'Overriding existing mesh id = {_id} filename = {self._meshWarpingList[_id]} with new mesh')
+            print(f'Overriding existing mesh id = {_id} filename = {self._meshWarpingList[_id]._filename} with new mesh')
 
-        self._meshWarpingList[_id] = _fnmesh
+        self._meshWarpingList[_id] = self.MeshListItem(_fnmesh, _smoothMesh)
+
 
     def RemoveMeshFromWarp(self, _id):
         """
@@ -144,7 +151,8 @@ class Propagator:
         print('List of meshes to be warped')
         print('----------------------------------')
         for id in self._meshWarpingList:
-            print(f'id: "{id}", filename: "{self._meshWarpingList[id]}"')
+            print(f'id: "{id}", filename: "{self._meshWarpingList[id]._filename}",\
+                 smoothMesh: {self._meshWarpingList[id]._smooth}')
 
         return self._meshWarpingList
 
@@ -278,7 +286,8 @@ class Propagator:
             os.system(cmd)
 
             # - add mesh to the meshWarpingList
-            self._meshWarpingList[''] = fn_mask_ref_vtk
+            #   always smooth reference mesh
+            self._meshWarpingList[''] = self.MeshListItem(fn_mask_ref_vtk, True)
         
 
             # - Create vtk mesh from the dilated mask
@@ -481,8 +490,8 @@ class Propagator:
             mesh_warps = affine_warps_pts + fn_regout_deform_inv
 
             for id in self._meshWarpingList:
-                fnmesh = self._meshWarpingList[id]
-                print(f'Mesh Warping {fnmesh}')
+                meshItem = self._meshWarpingList[id]
+                print(f'Mesh Warping {meshItem._filename}')
 
                 fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{fCrnt}.vtk')
                 print(f'Output mesh filename: {fn_seg_reslice_vtk}')
@@ -491,13 +500,14 @@ class Propagator:
                 self._greedy.apply_warp(
                     image_type = 'mesh',
                     img_fix = fn_img_fix,
-                    img_mov = fnmesh,
+                    img_mov = meshItem._filename,
                     img_reslice = fn_seg_reslice_vtk,
                     reg_affine = mesh_warps
                 )
 
-                # Smooth warped mesh
-                VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self._smoothingIter, self._smoothingPassband)
+                # Smooth warped mesh if smooth flag is True
+                if (meshItem._smooth):
+                    VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self._smoothingIter, self._smoothingPassband)
 
                 # Rename Point data
                 VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
@@ -505,15 +515,18 @@ class Propagator:
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
         # Smooth reference mesh
+        #   In the loop above only warped meshes (in target frames) are smoothed
+        #   Following loop smoothes reference frame for each meshes in the list
         for id in self._meshWarpingList:
             # In mesh warping mode don't double smooth original reference mesh
+            #   because original refernce mesh has already been smoothed during full mode run
             if meshWarpingMode and id == '':
                 continue
 
-            fnmesh = self._meshWarpingList[id]
-
-            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
-            VTKHelper.SmoothMeshTaubin(fnmesh, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
+            meshItem = self._meshWarpingList[id]
+            if (meshItem._smooth):
+                fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
+                VTKHelper.SmoothMeshTaubin(meshItem._filename, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
 
         perflog['Full Res Propagation'] = time.time() - timepoint
 
