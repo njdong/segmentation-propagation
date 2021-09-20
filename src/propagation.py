@@ -3,6 +3,7 @@ import vtk
 import time
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
+from shutil import copyfile
 
 class Propagator:
     def __init__(self):
@@ -514,9 +515,9 @@ class Propagator:
 
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
-        # Smooth reference mesh
-        #   In the loop above only warped meshes (in target frames) are smoothed
-        #   Following loop smoothes reference frame for each meshes in the list
+        # Processing reference mesh
+        #   In the loop above only warped meshes (in target frames) are processed
+        #   Following loop copy and smooth (if flagged) reference frame for each meshes in the list
         for id in self._meshWarpingList:
             # In mesh warping mode don't double smooth original reference mesh
             #   because original refernce mesh has already been smoothed during full mode run
@@ -524,9 +525,16 @@ class Propagator:
                 continue
 
             meshItem = self._meshWarpingList[id]
+
+            # Target file name
+            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
+
+            # If mesh is flagged to be smoothed, smooth and export the mesh to the folder
+            #   otherwise just copy the mesh without smoothing
             if (meshItem._smooth):
-                fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
                 VTKHelper.SmoothMeshTaubin(meshItem._filename, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
+            else:
+                copyfile(meshItem._filename, fn_seg_ref_vtk)
 
         perflog['Full Res Propagation'] = time.time() - timepoint
 
