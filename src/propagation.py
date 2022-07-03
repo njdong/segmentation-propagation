@@ -312,7 +312,7 @@ class Propagator:
                 fnImgRs = os.path.join(tmpdir, f'img_{i}_{tag}_srs.nii.gz')
                 image.ExportFrame(i, fnImg)
                 
-                cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
+                cmd = f'c3d {fnImg} -smooth 1mm -resample 50% -o {fnImgRs}'
                 print(cmd)
                 os.system(cmd)
             
