@@ -12,6 +12,7 @@ class Propagator:
         self._tag = "default"
         self._fref = -1
         self._outdir = "./out"
+        self._c3dLocation = "c3d"
         self._greedyLocation = "greedy"
         self._vtklevelsetLocation = "vtklevelset"
         self._greedy = None
@@ -32,6 +33,7 @@ class Propagator:
             self._smooth = smooth
 
     def SetInputImage(self, _fnimg):
+        assert os.path.exists(_fnimg), f"Input Image with path '{_fnimg}' doesn't exist"
         self._fnimg = _fnimg
 
     def SetTag(self, _tag):
@@ -41,6 +43,7 @@ class Propagator:
         self._outdir = _outdir
 
     def SetReferenceSegmentation(self, _fnsegref):
+        assert os.path.exists(_fnsegref), f"Reference Segmentation with path '{_fnsegref}' doesn't exist"
         self._fnsegref = _fnsegref
     
     def SetReferenceFrameNumber(self, _fref):
@@ -54,11 +57,20 @@ class Propagator:
         """Overrides existing target frames"""
         self.__parseFrameRangeArray(_frange)
 
+    def SetC3dLocation(self, _c3dLoc):
+        """
+            Optional: Set the specific version of c3d
+            Default: run greedy from the path
+        """
+        assert os.access(_c3dLoc, os.X_OK), f"{_c3dLoc} not found"
+        self._c3dLocation = _c3dLoc
+
     def SetGreedyLocation(self, _greedyLoc):
         """
             Optional: Set the specific version of greedy for the propagation
             Default: run greedy from the path
         """
+        assert os.access(_greedyLoc, os.X_OK), f"{_greedyLoc} not found"
         self._greedyLocation = _greedyLoc
 
     def SetVtkLevelSetLocation(self, _vtklevelsetLoc):
@@ -66,6 +78,7 @@ class Propagator:
             Optional: Set the specific version of vtklevelset for the propagation
             Default: run vtklevelset from the path
         """
+        assert os.access(_vtklevelsetLoc, os.X_OK), f"{_vtklevelsetLoc} not found"
         self._vtklevelsetLocation = _vtklevelsetLoc
 
     def SetFullResIterations(self, _iter):
@@ -129,7 +142,6 @@ class Propagator:
 
         self._meshWarpingList[_id] = self.MeshListItem(_fnmesh, _smoothMesh)
 
-
     def RemoveMeshFromWarp(self, _id):
         """
             Remove mesh with specified id from the warping list
@@ -157,7 +169,6 @@ class Propagator:
 
         return self._meshWarpingList
 
-
     def Run(self, MeshWarpOnly = False):
         self.__propagate(MeshWarpOnly)
         print('\r')
@@ -166,12 +177,9 @@ class Propagator:
         else:
             print('Propagation Completed!')
 
-
     def __parseFrameRangeArray(self, rangeArr):
         # todo: replace the placeholder
         self._targetFrames = []
-
-
 
     def __propagate(self, meshWarpingMode = False):
         #__propagate(fnimg, outdir = "", tag = "", seg_ref = "", self._targetFrames = [], fref = 0)
@@ -212,13 +220,13 @@ class Propagator:
         self._greedy = GreedyHelper(self._greedyLocation)
 
         # Validate Input Parameters
-        if (self._fnimg == ""):
+        if self._fnimg == "":
             raise RuntimeError("Input Image not set!")
-        if (len(self._targetFrames) == 0):
+        if len(self._targetFrames) == 0:
             raise RuntimeError("Target Frames not set!")
-        if (self._fref == -1):
+        if self._fref == -1:
             raise RuntimeError("Reference Frame Number not set!")
-        if (self._fref not in self._targetFrames):
+        if self._fref not in self._targetFrames:
             # always including reference frame in the target frame
             self._targetFrames.append(self._fref)
             self._targetFrames.sort()
@@ -273,7 +281,7 @@ class Propagator:
             # Process reference segmentation
             # - Dilate the reference segmentation (mask)
             fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}_srs.nii.gz')
-            cmd = f'c3d -int 0 {self._fnsegref} -threshold 1 inf 1 0 \
+            cmd = f'{self._c3dLocation} -int 0 {self._fnsegref} -threshold 1 inf 1 0 \
                 -dilate 1 10x10x10vox -resample 50% -o {fn_mask_ref_srs}'
             print("Dilating reference segmentation...")
             print(cmd)
@@ -312,7 +320,7 @@ class Propagator:
                 fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
                 image.ExportFrame(i, fnImg)
                 
-                cmd = 'c3d ' + fnImg + ' -smooth 1mm -resample 50% \-o ' + fnImgRs
+                cmd = f'{self._c3dLocation} {fnImg} -smooth 1mm -resample 50% \-o {fnImgRs}'
                 print(cmd)
                 os.system(cmd)
             
@@ -439,13 +447,13 @@ class Propagator:
                 mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
                 mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
                 print('Generating full res mask...')
-                cmd = f'c3d -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
+                cmd = f'{self._c3dLocation} -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
                 print(cmd)
                 os.system(cmd)
 
                 # trim to generate a reference frame
                 fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
-                cmd = f'c3d {mask_fix} -trim 0vox -o {fn_reference_frame}'
+                cmd = f'{self._c3dLocation} {mask_fix} -trim 0vox -o {fn_reference_frame}'
                 print(cmd)
                 os.system(cmd)
 
