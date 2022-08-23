@@ -11,8 +11,8 @@ class Propagator:
         self._fnimg = ""
         self._tag = "default"
         self._fref = -1
-        self._outdir = "./out"
         self._c3dLocation = "c3d"
+        self._outdir = os.path.join('.', "out")
         self._greedyLocation = "greedy"
         self._vtklevelsetLocation = "vtklevelset"
         self._greedy = None
@@ -316,10 +316,9 @@ class Propagator:
             timepoint = time.time()
             
             for i in self._targetFrames:
-                fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
-                fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
+                fnImg = os.path.join(tmpdir, f'img_{i}_{tag}.nii.gz')
+                fnImgRs = os.path.join(tmpdir, f'img_{i}_{tag}_srs.nii.gz')
                 image.ExportFrame(i, fnImg)
-                
                 cmd = f'{self._c3dLocation} {fnImg} -smooth 1mm -resample 50% \-o {fnImgRs}'
                 print(cmd)
                 os.system(cmd)
@@ -347,7 +346,7 @@ class Propagator:
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
                 else:
-                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                    fn_mask_init = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
 
                 
                 self.__propagation_helper(
@@ -380,7 +379,7 @@ class Propagator:
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
                 else:
-                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                    fn_mask_init = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
 
                 self.__propagation_helper(
                     work_dir = tmpdir,
@@ -409,8 +408,8 @@ class Propagator:
             if fCrnt == fref:
                 continue
 
-            fn_img_fix = f'{tmpdir}/img_{fCrnt}_{tag}.nii.gz'
-            fn_img_mov = f'{tmpdir}/img_{fref}_{tag}.nii.gz'
+            fn_img_fix = os.path.join(tmpdir, f'img_{fCrnt}_{tag}.nii.gz')
+            fn_img_mov = os.path.join(tmpdir, f'img_{fref}_{tag}.nii.gz')
 
             # recursively build affine warp
             affine_warps = ''
@@ -420,14 +419,14 @@ class Propagator:
                 fPrev = self._targetFrames[i - 1]
 
                 for j in range (ref_ind + 1, i + 1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j - 1]}_srs_init.mat'
+                    fn_regout_affine_init = os.path.join(tmpdir, f'affine_{self._targetFrames[j]}_to_{self._targetFrames[j - 1]}_srs_init.mat')
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
             else:
                 fPrev = self._targetFrames[i + 1]
 
                 for j in range (ref_ind - 1, i - 1, -1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j + 1]}_srs_init.mat'
+                    fn_regout_affine_init = os.path.join(tmpdir, f'affine_{self._targetFrames[j]}_to_{self._targetFrames[j + 1]}_srs_init.mat')
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
 
@@ -435,24 +434,24 @@ class Propagator:
             #print("affine_warps_pts: ", affine_warps_pts)
 
             # output file location
-            fn_seg_reslice = f'{self._outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
+            fn_seg_reslice = os.path.join(self._outdir, f'seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz')
             
 
             # transformation filenames
-            fn_regout_deform = f'{tmpdir}/warp_{fref}_to_{fCrnt}.nii.gz'
-            fn_regout_deform_inv = f'{tmpdir}/warp_{fref}_to_{fCrnt}_inv.nii.gz'
+            fn_regout_deform = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}.nii.gz')
+            fn_regout_deform_inv = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}_inv.nii.gz')
 
             if not meshWarpingMode:
                 # full resolution mask for this frame
-                mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
-                mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
+                mask_fix_srs = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
+                mask_fix = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz')
                 print('Generating full res mask...')
                 cmd = f'{self._c3dLocation} -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
                 print(cmd)
                 os.system(cmd)
 
                 # trim to generate a reference frame
-                fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
+                fn_reference_frame = os.path.join(tmpdir, f'reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz')
                 cmd = f'{self._c3dLocation} {mask_fix} -trim 0vox -o {fn_reference_frame}'
                 print(cmd)
                 os.system(cmd)
@@ -577,14 +576,14 @@ class Propagator:
         fNext = self._targetFrames[next_ind]
         
         # current dilated image as fix
-        fn_img_fix = f'{work_dir}/img_{fCrnt}_{tag}_srs.nii.gz'
+        fn_img_fix = os.path.join(work_dir, f'img_{fCrnt}_{tag}_srs.nii.gz')
         # next dilated image as moving image
-        fn_img_mov = f'{work_dir}/img_{fNext}_{tag}_srs.nii.gz'
+        fn_img_mov = os.path.join(work_dir, f'img_{fNext}_{tag}_srs.nii.gz')
         
         # filenames of initial transformations
-        fn_regout_affine = f'{work_dir}/affine_{fNext}_to_{fCrnt}_srs_init.mat'
-        fn_regout_deform = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init.nii.gz'
-        fn_regout_deform_inv = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz'
+        fn_regout_affine = os.path.join(work_dir, f'affine_{fNext}_to_{fCrnt}_srs_init.mat')
+        fn_regout_deform = os.path.join(work_dir, f'warp_{fNext}_to_{fCrnt}_srs_init.nii.gz')
+        fn_regout_deform_inv = os.path.join(work_dir, f'warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz')
         
         # call greedy to generate transformations
         self._greedy.run_reg(
@@ -607,8 +606,8 @@ class Propagator:
             warp_str_array[crnt_ind] = f'{warp_str_array[prev_ind]} {fn_regout_affine},-1 {fn_regout_deform_inv} '
 
         # Parallelizable
-        fn_mask_init_reslice = f'{work_dir}/mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.nii.gz'
-        fn_mask_init_reslice_vtk = f'{work_dir}/mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.vtk'
+        fn_mask_init_reslice = os.path.join(work_dir, f'mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.nii.gz')
+        fn_mask_init_reslice_vtk = os.path.join(work_dir, f'mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.vtk')
 
         # call greedy applying warp
         print('Applying warp to label...')
