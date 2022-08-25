@@ -24,6 +24,7 @@ class Propagator:
         self._smoothingPassband = 0.1
         self._meshWarpingList = {}
         self._isRegCompleted = False
+        self._useAffineJitter = True # If set to false, it removes the randomness from the affine matrix out
         
     class MeshListItem:
         def __init__(self, filename, smooth):
@@ -111,6 +112,14 @@ class Propagator:
             Default: None (Unspecified)
         """
         self._threads = _threads
+
+    def SetUseAffineJitter(self, _useAffineJitter):
+        """
+            Optional: Set whether to use the default jitter setting for affine registration
+            If set to False, it removes the randomness from the result
+            Default: True
+        """
+        self._useAffineJitter = _useAffineJitter;
 
     def SetSmoothingNumberOfIteration(self, _iter):
         """
@@ -595,7 +604,8 @@ class Propagator:
             mask_fix = mask_init,
             metric_spec=self._metric_spec,
             multi_res_schedule=self._dilatedResIteration,
-            threads = self._threads
+            threads = self._threads,
+            useAffineJitter = self._useAffineJitter
         )
 
         # Build warp string array recursively

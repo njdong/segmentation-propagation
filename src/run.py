@@ -1,34 +1,31 @@
 import os
 from propagation import Propagator
 
-workdir = "/users/jileihao/picsl/propagation/sandbox"
-
 # Create a new Propagator
 p = Propagator()
 
-"""bavcta001"""
-fnimg = os.path.join(workdir, "test/bavcta001/img4d__bavcta001_trim.nii.gz")
-fnseg = os.path.join(workdir, "test/bavcta001/seg03_bavcta001_trim.nii.gz")
-fref = 3
-targetFrame = [1,2,3,4,5,6,7]
+# Set inputs
+onlyWarpMesh = False
 
-"""bav07"""
-# fnimg = os.path.join(workdir, "test/bav07_dcm/bav07.dcm")
-# fnseg = os.path.join(workdir, "test/bav07_dcm/seg05_bav07_root_labeled_LPS.nii.gz")
-# fref = 5
-# targetFrame = [3,5,7]
-
-## Set parameters
-p.SetTag("renameTest")
-p.SetInputImage(fnimg)
-p.SetReferenceSegmentation(fnseg)
-p.SetReferenceFrameNumber(fref)
-p.SetGreedyLocation(os.path.join(workdir, "greedy"))
-p.SetVtkLevelSetLocation(os.path.join(workdir, "vtklevelset"))
-p.SetTargetFrames(targetFrame)
-p.SetOutputDir(os.path.join(workdir, "out"))
+## Configure the propagator
+p.SetTag("python")
+p.SetInputImage("/Users/jileihao/data/data_propagation/greed-2_validation/img4d_seq.nii")
+p.SetReferenceSegmentation("/Users/jileihao/data/data_propagation/greed-2_validation/seg_image.nii.gz")
+p.SetReferenceFrameNumber(9)
+p.SetTargetFrames([10])
+p.SetGreedyLocation("/Users/jileihao/dev/greedy-dev/build-release-dynamic/greedy")
+p.SetC3dLocation("/Users/jileihao/dev/c3d-dev/build-release-dynamic/c3d")
+p.SetVtkLevelSetLocation("/Users/jileihao/dev/cmrep-dev/build-release-dynamic/vtklevelset")
+p.SetOutputDir("/Users/jileihao/playground/pg_propagation/greedy-2_validation/python/out")
 p.SetSmoothingNumberOfIteration(35)
 p.SetSmoothingPassband(0.05)
+
+### Optional Parameters for testing purpose
+p.SetFullResIterations('50x50')
+p.SetDilatedResIteration('50x50')
+p.SetUseAffineJitter(False); # remove randomness
+#p.SetGreedyThreads(8)
+
 
 ## Add additional mesh to warp
 ##  parameters: 
@@ -36,9 +33,9 @@ p.SetSmoothingPassband(0.05)
 ##    filename: (string) the file path of the mesh
 ##    smooth: (boolean) indicating if mesh to be smoothed
 """Reference mesh with empty string identifier is added by default and cannot be removed"""
-p.AddMeshToWarp('d', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'), True)
-p.AddMeshToWarp('e', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'), False)
-p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'), False)
+# p.AddMeshToWarp('d', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'), True)
+# p.AddMeshToWarp('e', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'), False)
+# p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'), False)
 
 ## check list of meshes to be warped
 #p.GetWarpingList()
@@ -46,10 +43,6 @@ p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk
 #p.RemoveMeshFromWarp('c')
 
 
-### Optional Parameters for testing purpose
-#p.SetFullResIterations('5x2x1')
-#p.SetDilatedResIteration('5x2x1')
-#p.SetGreedyThreads(6)
 
 
 ## Run propagation
@@ -67,4 +60,4 @@ p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk
     - By default MeshWarpOnly is False, meaning propagator will run with full registration
       and mesh warping
 """
-p.Run(MeshWarpOnly = True)
+p.Run(MeshWarpOnly = onlyWarpMesh)
