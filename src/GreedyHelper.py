@@ -6,7 +6,7 @@ class GreedyHelper:
 
     def run_reg(self, img_fix, img_mov, regout_deform_inv, mask_fix, \
         affine_init = '', regout_affine = '', regout_deform = '', reference_image = '', \
-        multi_res_schedule = '100x100', metric_spec = 'SSD', threads = -1):
+        multi_res_schedule = '100x100', metric_spec = 'SSD', threads = -1, useAffineJitter = True):
 
         """
         Make system call to greedy
@@ -30,6 +30,11 @@ class GreedyHelper:
         Use full paths for all filenames.
         """
 
+        affineJitter = "";
+
+        if not useAffineJitter:
+            affineJitter = "-jitter 0";
+
         cmdbase = f'{self.greedy} -d 3 '
         if threads > 0:
             cmdbase = cmdbase + f'-threads {threads} '
@@ -44,6 +49,7 @@ class GreedyHelper:
             aff_cmd = f'{aff_cmd} \
                 -ia-identity \
                 -dof 6 \
+                {affineJitter} \
                 -s 3mm 1.5mm \
                 -gm {mask_fix} \
                 -o {regout_affine} '
@@ -125,7 +131,7 @@ class GreedyHelper:
                 -rm {img_mov} {img_reslice} '
         elif image_type == 'label':
             cmd = cmd + f' \
-                -ri NN \
+                -ri LABEL 0.2vox \
                 -rm {img_mov} {img_reslice} '
         elif image_type == 'mesh':
             cmd = cmd + f' \
