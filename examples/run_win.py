@@ -1,5 +1,11 @@
 import os
-from propagation import Propagator
+import sys
+
+## An example running the Propagator on windows
+
+sys.path.append('\\Absolute\\path\to\\the\\src');
+
+from src.Propagator import Propagator
 
 workdir = "C:\\playground\\pg_propagation\\Systole\\run_01"
 
