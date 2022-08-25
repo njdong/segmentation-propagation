@@ -1,5 +1,11 @@
 import os
-from propagation import Propagator
+import sys
+
+## An example running the propagator on unix-like shell
+
+sys.path.append('/Absolute/path/to/the/src');
+
+from Propagator import Propagator
 
 # Create a new Propagator
 p = Propagator()
