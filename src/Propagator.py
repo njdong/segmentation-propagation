@@ -4,6 +4,7 @@ import time
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
 from shutil import copyfile
+from stack3d import Stack3D
 
 class Propagator:
     def __init__(self):
@@ -408,6 +409,13 @@ class Propagator:
             print('Propagating in Full Resolution: ')
             print('---------------------------------\r')
 
+        # create a 4d segmentation builder
+        if not meshWarpingMode:
+            seg4d_builder = Stack3D()
+            seg4d_builder.SetReferenceImage(self._fnimg)
+            seg4d_builder.SetReferenceSegmentation(self._fref, self._fnsegref)
+            seg4d_builder.SetTag(self._tag)
+
         for i in range(0, len(self._targetFrames)):
             fCrnt = self._targetFrames[i]
             print('\r-----------------------------')
@@ -444,7 +452,6 @@ class Propagator:
 
             # output file location
             fn_seg_reslice = os.path.join(self._outdir, f'seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz')
-            
 
             # transformation filenames
             fn_regout_deform = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}.nii.gz')
@@ -501,6 +508,8 @@ class Propagator:
                 )
                 perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
 
+                seg4d_builder.AddSegmentation(fCrnt, fn_seg_reslice) # add segmentation to 4d builder
+
             timepoint1 = time.time()
 
             print('Applying warp to meshes...')
@@ -530,6 +539,11 @@ class Propagator:
                 VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
 
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
+
+        # write out 4d segmentation
+        if not meshWarpingMode:
+            seg4d_builder.SetOutputDir(self._outdir)
+            seg4d_builder.Write()
 
         # Processing reference mesh
         #   In the loop above only warped meshes (in target frames) are processed
