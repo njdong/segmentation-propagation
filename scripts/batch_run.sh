@@ -81,4 +81,4 @@ do
 
   echo "$prefix -- Propagation completed! Return code: $?"
   
-done < <(tail -n +2 $filelist)
+done < $filelist
