@@ -1,30 +1,30 @@
 import os
-from propagation import Propagator
+import sys
 
-workdir = "/users/jileihao/picsl/propagation/sandbox"
+## An example running the Propagator on windows
+
+sys.path.append('\\Absolute\\path\to\\the\\src');
+
+from src.Propagator import Propagator
+
+workdir = "C:\\playground\\pg_propagation\\Systole\\run_01"
 
 # Create a new Propagator
 p = Propagator()
 
-"""bavcta001"""
-fnimg = os.path.join(workdir, "test/bavcta001/img4d__bavcta001_trim.nii.gz")
-fnseg = os.path.join(workdir, "test/bavcta001/seg03_bavcta001_trim.nii.gz")
-fref = 3
-targetFrame = [1,2,3,4,5,6,7]
+fnimg = "C:\\data\\data_propagation\\Systole\\img4d_seq.nii"
+fnseg = "C:\\data\\data_propagation\\Systole\\seg_image.nii.gz"
+fref = 1
+targetFrame = [2,3,4]
 
-"""bav07"""
-# fnimg = os.path.join(workdir, "test/bav07_dcm/bav07.dcm")
-# fnseg = os.path.join(workdir, "test/bav07_dcm/seg05_bav07_root_labeled_LPS.nii.gz")
-# fref = 5
-# targetFrame = [3,5,7]
 
 ## Set parameters
-p.SetTag("renameTest")
+p.SetTag("winTest")
 p.SetInputImage(fnimg)
 p.SetReferenceSegmentation(fnseg)
 p.SetReferenceFrameNumber(fref)
-p.SetGreedyLocation(os.path.join(workdir, "greedy"))
-p.SetVtkLevelSetLocation(os.path.join(workdir, "vtklevelset"))
+p.SetGreedyLocation("C:\\tk\greedy\\bin\\greedy.exe")
+p.SetVtkLevelSetLocation("C:\\tk\\vtklevelset\\vtklevelset.exe")
 p.SetTargetFrames(targetFrame)
 p.SetOutputDir(os.path.join(workdir, "out"))
 p.SetSmoothingNumberOfIteration(35)
@@ -35,10 +35,7 @@ p.SetSmoothingPassband(0.05)
 ##    id: (string) identifier of the mesh. used for list update and deletion, and naming of the file
 ##    filename: (string) the file path of the mesh
 ##    smooth: (boolean) indicating if mesh to be smoothed
-"""Reference mesh with empty string identifier is added by default and cannot be removed"""
-p.AddMeshToWarp('d', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'), True)
-p.AddMeshToWarp('e', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'), False)
-p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'), False)
+
 
 ## check list of meshes to be warped
 #p.GetWarpingList()
@@ -67,4 +64,4 @@ p.AddMeshToWarp('f', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk
     - By default MeshWarpOnly is False, meaning propagator will run with full registration
       and mesh warping
 """
-p.Run(MeshWarpOnly = True)
+p.Run(MeshWarpOnly = False)

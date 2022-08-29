@@ -1,0 +1,11 @@
+{
+    "greedyLocation": "/Users/jileihao/dev/greedy-dev/build-release-dynamic/greedy",
+    "c3dLocation": "/Users/jileihao/dev/c3d-dev/build-release-dynamic/c3d",
+    "vtklevelsetLocation": "/Users/jileihao/dev/cmrep-dev/build-release-dynamic/vtklevelset",
+    "downSampledIteration": "50x50",
+    "fullResIteration": "50x50",
+    "meshSmoothingNumberOfIterations": 35,
+    "meshSmoothingPassband": 0.05,
+    "disablePythonMesh": true,
+    "useAffineJitter": false
+}

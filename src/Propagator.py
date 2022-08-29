@@ -4,6 +4,7 @@ import time
 from Image4D import Image4D
 from GreedyHelper import GreedyHelper
 from shutil import copyfile
+from stack3d import Stack3D
 
 class Propagator:
     def __init__(self):
@@ -11,8 +12,8 @@ class Propagator:
         self._fnimg = ""
         self._tag = "default"
         self._fref = -1
-        self._outdir = "./out"
         self._c3dLocation = "c3d"
+        self._outdir = os.path.join('.', "out")
         self._greedyLocation = "greedy"
         self._vtklevelsetLocation = "vtklevelset"
         self._greedy = None
@@ -24,7 +25,9 @@ class Propagator:
         self._smoothingPassband = 0.1
         self._meshWarpingList = {}
         self._isRegCompleted = False
-        
+        self._useAffineJitter = True # If set to false, it removes the randomness from the affine matrix out
+        self._disablePythonMesh = False
+
     class MeshListItem:
         def __init__(self, filename, smooth):
             # file path of the mesh
@@ -111,6 +114,28 @@ class Propagator:
             Default: None (Unspecified)
         """
         self._threads = _threads
+
+    def SetUseAffineJitter(self, _useAffineJitter):
+        """
+            Optional: Set whether to use the default jitter setting for affine registration
+            If set to False, it removes the randomness from the result
+            Default: True
+        """
+        self._useAffineJitter = _useAffineJitter;
+
+    def SetDisablePythonMesh(self, _disablePythonMesh):
+        """
+            Optional: Disable Python Mesh library to avoid error from 
+            vtk python library when using order Python version. 
+            vtk file version 5.x exported from vtk9+ cannot be correctly
+            read by vtk8- readers. It could export tons of warning and error
+            messages that could break the run. Disable this if the python cannot
+            be upgraded to use python vtk9
+
+            Warning, setting this to true will disable the renaming of 
+            mesh data and mesh smoothing
+        """
+        self._disablePythonMesh = _disablePythonMesh
 
     def SetSmoothingNumberOfIteration(self, _iter):
         """
@@ -316,10 +341,9 @@ class Propagator:
             timepoint = time.time()
             
             for i in self._targetFrames:
-                fnImg = f'{tmpdir}/img_{i}_{tag}.nii.gz'
-                fnImgRs = f'{tmpdir}/img_{i}_{tag}_srs.nii.gz'
+                fnImg = os.path.join(tmpdir, f'img_{i}_{tag}.nii.gz')
+                fnImgRs = os.path.join(tmpdir, f'img_{i}_{tag}_srs.nii.gz')
                 image.ExportFrame(i, fnImg)
-                
                 cmd = f'{self._c3dLocation} {fnImg} -smooth 1mm -resample 50% \-o {fnImgRs}'
                 print(cmd)
                 os.system(cmd)
@@ -347,7 +371,7 @@ class Propagator:
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
                 else:
-                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                    fn_mask_init = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
 
                 
                 self.__propagation_helper(
@@ -380,7 +404,7 @@ class Propagator:
                 if fCrnt == fref:
                     fn_mask_init = fn_mask_ref_srs
                 else:
-                    fn_mask_init = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
+                    fn_mask_init = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
 
                 self.__propagation_helper(
                     work_dir = tmpdir,
@@ -400,6 +424,13 @@ class Propagator:
             print('Propagating in Full Resolution: ')
             print('---------------------------------\r')
 
+        # create a 4d segmentation builder
+        if not meshWarpingMode:
+            seg4d_builder = Stack3D()
+            seg4d_builder.SetReferenceImage(self._fnimg)
+            seg4d_builder.SetReferenceSegmentation(self._fref, self._fnsegref)
+            seg4d_builder.SetTag(self._tag)
+
         for i in range(0, len(self._targetFrames)):
             fCrnt = self._targetFrames[i]
             print('\r-----------------------------')
@@ -409,8 +440,8 @@ class Propagator:
             if fCrnt == fref:
                 continue
 
-            fn_img_fix = f'{tmpdir}/img_{fCrnt}_{tag}.nii.gz'
-            fn_img_mov = f'{tmpdir}/img_{fref}_{tag}.nii.gz'
+            fn_img_fix = os.path.join(tmpdir, f'img_{fCrnt}_{tag}.nii.gz')
+            fn_img_mov = os.path.join(tmpdir, f'img_{fref}_{tag}.nii.gz')
 
             # recursively build affine warp
             affine_warps = ''
@@ -420,14 +451,14 @@ class Propagator:
                 fPrev = self._targetFrames[i - 1]
 
                 for j in range (ref_ind + 1, i + 1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j - 1]}_srs_init.mat'
+                    fn_regout_affine_init = os.path.join(tmpdir, f'affine_{self._targetFrames[j]}_to_{self._targetFrames[j - 1]}_srs_init.mat')
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
             else:
                 fPrev = self._targetFrames[i + 1]
 
                 for j in range (ref_ind - 1, i - 1, -1):
-                    fn_regout_affine_init = f'{tmpdir}/affine_{self._targetFrames[j]}_to_{self._targetFrames[j + 1]}_srs_init.mat'
+                    fn_regout_affine_init = os.path.join(tmpdir, f'affine_{self._targetFrames[j]}_to_{self._targetFrames[j + 1]}_srs_init.mat')
                     affine_warps = affine_warps + ' ' + fn_regout_affine_init + ',-1 '
                     affine_warps_pts = fn_regout_affine_init + ' ' + affine_warps_pts
 
@@ -435,24 +466,23 @@ class Propagator:
             #print("affine_warps_pts: ", affine_warps_pts)
 
             # output file location
-            fn_seg_reslice = f'{self._outdir}/seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz'
-            
+            fn_seg_reslice = os.path.join(self._outdir, f'seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz')
 
             # transformation filenames
-            fn_regout_deform = f'{tmpdir}/warp_{fref}_to_{fCrnt}.nii.gz'
-            fn_regout_deform_inv = f'{tmpdir}/warp_{fref}_to_{fCrnt}_inv.nii.gz'
+            fn_regout_deform = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}.nii.gz')
+            fn_regout_deform_inv = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}_inv.nii.gz')
 
             if not meshWarpingMode:
                 # full resolution mask for this frame
-                mask_fix_srs = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz'
-                mask_fix = f'{tmpdir}/mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz'
+                mask_fix_srs = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
+                mask_fix = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz')
                 print('Generating full res mask...')
                 cmd = f'{self._c3dLocation} -interpolation NearestNeighbor {fn_img_fix} {mask_fix_srs} -reslice-identity -o {mask_fix}'
                 print(cmd)
                 os.system(cmd)
 
                 # trim to generate a reference frame
-                fn_reference_frame = f'{tmpdir}/reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz'
+                fn_reference_frame = os.path.join(tmpdir, f'reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz')
                 cmd = f'{self._c3dLocation} {mask_fix} -trim 0vox -o {fn_reference_frame}'
                 print(cmd)
                 os.system(cmd)
@@ -493,6 +523,8 @@ class Propagator:
                 )
                 perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
 
+                seg4d_builder.AddSegmentation(fCrnt, fn_seg_reslice) # add segmentation to 4d builder
+
             timepoint1 = time.time()
 
             print('Applying warp to meshes...')
@@ -515,13 +547,19 @@ class Propagator:
                 )
 
                 # Smooth warped mesh if smooth flag is True
-                if (meshItem._smooth):
+                if meshItem._smooth and not self._disablePythonMesh:
                     VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self._smoothingIter, self._smoothingPassband)
 
                 # Rename Point data
-                VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
+                if not self._disablePythonMesh:
+                    VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
 
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
+
+        # write out 4d segmentation
+        if not meshWarpingMode:
+            seg4d_builder.SetOutputDir(self._outdir)
+            seg4d_builder.Write()
 
         # Processing reference mesh
         #   In the loop above only warped meshes (in target frames) are processed
@@ -539,7 +577,7 @@ class Propagator:
 
             # If mesh is flagged to be smoothed, smooth and export the mesh to the folder
             #   otherwise just copy the mesh without smoothing
-            if (meshItem._smooth):
+            if (meshItem._smooth and not self._disablePythonMesh):
                 VTKHelper.SmoothMeshTaubin(meshItem._filename, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
             else:
                 copyfile(meshItem._filename, fn_seg_ref_vtk)
@@ -577,14 +615,14 @@ class Propagator:
         fNext = self._targetFrames[next_ind]
         
         # current dilated image as fix
-        fn_img_fix = f'{work_dir}/img_{fCrnt}_{tag}_srs.nii.gz'
+        fn_img_fix = os.path.join(work_dir, f'img_{fCrnt}_{tag}_srs.nii.gz')
         # next dilated image as moving image
-        fn_img_mov = f'{work_dir}/img_{fNext}_{tag}_srs.nii.gz'
+        fn_img_mov = os.path.join(work_dir, f'img_{fNext}_{tag}_srs.nii.gz')
         
         # filenames of initial transformations
-        fn_regout_affine = f'{work_dir}/affine_{fNext}_to_{fCrnt}_srs_init.mat'
-        fn_regout_deform = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init.nii.gz'
-        fn_regout_deform_inv = f'{work_dir}/warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz'
+        fn_regout_affine = os.path.join(work_dir, f'affine_{fNext}_to_{fCrnt}_srs_init.mat')
+        fn_regout_deform = os.path.join(work_dir, f'warp_{fNext}_to_{fCrnt}_srs_init.nii.gz')
+        fn_regout_deform_inv = os.path.join(work_dir, f'warp_{fNext}_to_{fCrnt}_srs_init_inv.nii.gz')
         
         # call greedy to generate transformations
         self._greedy.run_reg(
@@ -596,7 +634,8 @@ class Propagator:
             mask_fix = mask_init,
             metric_spec=self._metric_spec,
             multi_res_schedule=self._dilatedResIteration,
-            threads = self._threads
+            threads = self._threads,
+            useAffineJitter = self._useAffineJitter
         )
 
         # Build warp string array recursively
@@ -607,8 +646,8 @@ class Propagator:
             warp_str_array[crnt_ind] = f'{warp_str_array[prev_ind]} {fn_regout_affine},-1 {fn_regout_deform_inv} '
 
         # Parallelizable
-        fn_mask_init_reslice = f'{work_dir}/mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.nii.gz'
-        fn_mask_init_reslice_vtk = f'{work_dir}/mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.vtk'
+        fn_mask_init_reslice = os.path.join(work_dir, f'mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.nii.gz')
+        fn_mask_init_reslice_vtk = os.path.join(work_dir, f'mask_{fCrnt}_to_{fNext}_{tag}_srs_reslice_init.vtk')
 
         # call greedy applying warp
         print('Applying warp to label...')
@@ -644,6 +683,9 @@ class VTKHelper:
         # Extract point data
         polyData = reader.GetOutput()
         pointData = polyData.GetPointData()
+
+        if pointData is None:
+            return
 
         # Extract the scalar array and set a new name
         scalarArr = pointData.GetScalars()
