@@ -50,7 +50,8 @@ def main():
     p.SetDilatedResIteration(config["downSampledIteration"])
     p.SetSmoothingNumberOfIteration(int(config["meshSmoothingNumberOfIterations"]))
     p.SetSmoothingPassband(float(config["meshSmoothingPassband"]))
-    p.SetUseAffineJitter(True); # remove randomness
+    p.SetDisablePythonMesh(config["disablePythonMesh"])
+    p.SetUseAffineJitter(config["useAffineJitter"]); # remove randomness
 
     p.Run()
 

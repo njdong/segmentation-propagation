@@ -5,5 +5,7 @@
     "downSampledIteration": "50x50",
     "fullResIteration": "50x50",
     "meshSmoothingNumberOfIterations": 35,
-    "meshSmoothingPassband": 0.05
+    "meshSmoothingPassband": 0.05,
+    "disablePythonMesh": true,
+    "useAffineJitter": false
 }

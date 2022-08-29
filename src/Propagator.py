@@ -26,7 +26,8 @@ class Propagator:
         self._meshWarpingList = {}
         self._isRegCompleted = False
         self._useAffineJitter = True # If set to false, it removes the randomness from the affine matrix out
-        
+        self._disablePythonMesh = False
+
     class MeshListItem:
         def __init__(self, filename, smooth):
             # file path of the mesh
@@ -121,6 +122,20 @@ class Propagator:
             Default: True
         """
         self._useAffineJitter = _useAffineJitter;
+
+    def SetDisablePythonMesh(self, _disablePythonMesh):
+        """
+            Optional: Disable Python Mesh library to avoid error from 
+            vtk python library when using order Python version. 
+            vtk file version 5.x exported from vtk9+ cannot be correctly
+            read by vtk8- readers. It could export tons of warning and error
+            messages that could break the run. Disable this if the python cannot
+            be upgraded to use python vtk9
+
+            Warning, setting this to true will disable the renaming of 
+            mesh data and mesh smoothing
+        """
+        self._disablePythonMesh = _disablePythonMesh
 
     def SetSmoothingNumberOfIteration(self, _iter):
         """
@@ -532,11 +547,12 @@ class Propagator:
                 )
 
                 # Smooth warped mesh if smooth flag is True
-                if (meshItem._smooth):
+                if meshItem._smooth and not self._disablePythonMesh:
                     VTKHelper.SmoothMeshTaubin(fn_seg_reslice_vtk, fn_seg_reslice_vtk, self._smoothingIter, self._smoothingPassband)
 
                 # Rename Point data
-                VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
+                if not self._disablePythonMesh:
+                    VTKHelper.RenamePointData(fn_seg_reslice_vtk, 'Label')
 
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
@@ -561,7 +577,7 @@ class Propagator:
 
             # If mesh is flagged to be smoothed, smooth and export the mesh to the folder
             #   otherwise just copy the mesh without smoothing
-            if (meshItem._smooth):
+            if (meshItem._smooth and not self._disablePythonMesh):
                 VTKHelper.SmoothMeshTaubin(meshItem._filename, fn_seg_ref_vtk, self._smoothingIter, self._smoothingPassband)
             else:
                 copyfile(meshItem._filename, fn_seg_ref_vtk)
@@ -667,6 +683,9 @@ class VTKHelper:
         # Extract point data
         polyData = reader.GetOutput()
         pointData = polyData.GetPointData()
+
+        if pointData is None:
+            return
 
         # Extract the scalar array and set a new name
         scalarArr = pointData.GetScalars()
