@@ -3,105 +3,55 @@
 The function propagation.m is used to transform a segmentation in one frame to other frames within an image series. Deformable registration between frames is performed with the "greedy" tool.
 
 ## Example
-```python
-import os
-from propagation import Propagator
+### Run in a python script
+- Examples for running in python scripts, see examples/run.py
+### Run in commandline interface or in a batch script
+#### Compile a csv file with following columns:
+- Tag: for uniquely identifying each run
+- Image: absolute path of the 4D image 
+- Segmentation: absolute path of the reference segmentation image
+- Reference Time Point: the time point (or frame) that reference segmentation image belongs to
+- Target Time Points: a semicolon separated list contains all the time points (or frames) to propagate to
 
+Warning:
+- Don't include header in the .csv file
+- Don't wrap values with double quotes
 
-# Optional: Recommend a work directory to organize all inputs and outputs
-workdir = "/users/guest/playground"
+#### Modify the config.json to setup local environment and execution settings
 
-# Create a new Propagator
-p = Propagator()
+#### Following is a sample command. Modify the argument with local environment settings
+``` bash
+/segmentation-propagation/scripts/batch_run.sh \
+"/Absolute/Path/To/file_list.csv" \
+"/Absolute/Path/To/ProjectDir/segmentation-propagation" \
+"/Absolute/Path/To/ConfigFile/segmentation-propagation/config.json" \
+"/Absolute/Path/To/OutputDir"
 
-
-fnimg = os.path.join(workdir, "img4d.nii.gz")
-fnseg = os.path.join(workdir, "seg03.nii.gz")
-fref = 3
-targetFrame = [1,3,7]
-
-# Configure Propagation Parameters
-# -- Set an identifier for current run.
-# -- Do not include illegal characters for a file name
-p.SetTag("Test")
-
-# -- Input Image filename
-p.SetInputImage(fnimg)
-
-# -- Reference segmentation is the segmentation to be propagated to target frames
-p.SetReferenceSegmentation(fnseg)
-
-# -- Reference frame number is the frame number of the segmentation to be propagated
-p.SetReferenceFrameNumber(fref)
-
-# -- Target frames for propagation
-p.SetTargetFrames(targetFrame)
-
-# -- Output directory for results and itermediate files
-p.SetOutputDir(os.path.join(workdir, "out"))
-
-## Add additional mesh to warp
-##  parameters: 
-##    id: (string) identifier of the mesh. used for list update and deletion, and naming of the file
-##    filename: (string) the file path of the mesh
-##    smooth: (boolean) indicating if mesh to be smoothed
-"""Reference mesh with empty string identifier is added by default and cannot be removed"""
-p.AddMeshToWarp('a', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_a.vtk'), True)
-p.AddMeshToWarp('b', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_b.vtk'), False)
-p.AddMeshToWarp('c', os.path.join(workdir, 'test/bavcta001/seg03_bavcta001_c.vtk'), False)
-
-## check list of meshes to be warped
-#p.GetWarpingList()
-## remove meshe from the list
-#p.RemoveMeshFromWarp('c')
-
-### Optional Parameters for debugging purpose
-#p.SetFullResIterations('5x2x1')
-#p.SetDilatedResIteration('5x2x1')
-#p.SetGreedyThreads(6)
-
-# Optional Parameters for testing purpose
-# -- Set to use specific version of greedy.
-# -- By default, it will use greedy in the system PATH
-p.SetGreedyLocation(os.path.join(workdir, "greedy"))
-# -- Set to use specific version of vtklevelset.
-# -- By default, it will use greedy in the system PATH
-p.SetVtkLevelSetLocation(os.path.join(workdir, "vtklevelset"))
-# -- Set the iteration schedule for the full resolution propagation
-# -- By default, it will use 100x100
-p.SetFullResIterations('100x20')
-# -- Set number of threads for greedy to use
-# -- By default, it will use all threads available
-p.SetGreedyThreads(6)
-
-## Run propagation
-"""
-    - Set MeshWarpOnly to True to only warp meshes in the WarpingList based on existing 
-      registration matrices. 
-    - MeshWarpOnly mode is rely on previously generated registration matrices. Therefore, propagation
-      with registration has to be completed before MeshWarpOnly run with same:
-        - Reference frame
-        - Output directory
-        - Target frame
-        - Tag
-      Also do not move, delete, rename any files in the out/tmp folder.
-      Or there will be missing file errors.
-    - By default MeshWarpOnly is False, meaning propagator will run with full registration
-      and mesh warping
-"""
-p.Run(MeshWarpOnly = True)
+# arg1: filelist.csv location
+# arg2: project directory. i.e. the folder contains propagation.py
+# arg3: config file location
+# arg4: output directory
 ```
+
+#### The result will be saved to folders in the output directory, nameed by tags. Execution log will also be saved in the tag named folders
 
 
 ## Version History
 ### Version 1.0
-- czi-33: First usable version
+- First usable version
 ### Version 1.1
-- czi-67: Modfied to adopt latest greedy and vtkleveset
+- Modfied to adopt latest greedy and vtkleveset
 ### Version 1.2
-- czi-73: Reorganizes mesh output files into a dedicated mesh folder with new naming convention
-- czi-74: Added mesh point data renaming logic; Added multiple options for configure greedy.
-- czi-76: Added Mesh Warping feature; Added run mode that can warp multiple meshes using existing
+- Reorganizes mesh output files into a dedicated mesh folder with new naming convention
+- Added mesh point data renaming logic; Added multiple options for configure greedy.
+- Added Mesh Warping feature; Added run mode that can warp multiple meshes using existing
           registration matrices without running registration again.
 ### Version 1.2.1
-- czi-105: Added flag to control smoothing for added mesh to warp
+- Added flag to control smoothing for added mesh to warp
+### Version 1.3.0
+- Added c3d location option
+- Added support for windows paths
+### Version 1.4.0
+- Added command line interface
+- Added batch_run script for running multiple propagations
+- Added multiple configuration for server deployment and troubleshooting
