@@ -2,6 +2,19 @@
 
 The function propagation.m is used to transform a segmentation in one frame to other frames within an image series. Deformable registration between frames is performed with the "greedy" tool.
 
+## Prerequisites
+### Greedy
+Download greedy from https://sourceforge.net/projects/greedy-reg/
+### c3d
+Download c3d from https://sourceforge.net/projects/c3d/
+### cmrep (vtklevelset)
+Download cmrep from https://sourceforge.net/projects/cmrep/files/cmrep/
+### Python dependencies
+- Python 3.9 and above. If using Python version earlier than Python 3.9 is mandatory and vtk9 cannot be installed. Set disablePythonMesh to true to avoid any exceptions
+- pip3 install vtk
+- pip3 install nibabel
+- pip3 install SimpleITK
+
 ## Example
 ### Run in a python script
 - Examples for running in python scripts, see examples/run.py
