@@ -481,12 +481,6 @@ class Propagator:
                 print(cmd)
                 os.system(cmd)
 
-                # trim to generate a reference frame
-                fn_reference_frame = os.path.join(tmpdir, f'reference_{fPrev}_to_{fCrnt}_{tag}.nii.gz')
-                cmd = f'{self._c3dLocation} {mask_fix} -trim 0vox -o {fn_reference_frame}'
-                print(cmd)
-                os.system(cmd)
-
                 # run registration and apply warp
                 timepoint1 = time.time()
 
@@ -502,7 +496,6 @@ class Propagator:
                     affine_init = affine_warps,
                     regout_deform = fn_regout_deform,
                     regout_deform_inv = fn_regout_deform_inv,
-                    reference_image = fn_reference_frame,
                     mask_fix = mask_fix,
                     multi_res_schedule = self._fullResIteration,
                     metric_spec = self._metric_spec,

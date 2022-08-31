@@ -5,7 +5,7 @@ class GreedyHelper:
         self.greedy = location
 
     def run_reg(self, img_fix, img_mov, regout_deform_inv, mask_fix, \
-        affine_init = '', regout_affine = '', regout_deform = '', reference_image = '', \
+        affine_init = '', regout_affine = '', regout_deform = '', \
         multi_res_schedule = '100x100', metric_spec = 'SSD', threads = -1, useAffineJitter = True):
 
         """
@@ -42,9 +42,6 @@ class GreedyHelper:
         if regout_affine != '' and regout_deform != '':
             # Affine generation
             aff_cmd = cmdbase + f'-a -i {img_fix} {img_mov} '
-
-            if reference_image != '':
-                aff_cmd = f'{aff_cmd} -rf {reference_image} '
             
             aff_cmd = f'{aff_cmd} \
                 -ia-identity \
@@ -59,9 +56,6 @@ class GreedyHelper:
 
             # Deform generation
             def_cmd = f'{cmdbase} -i {img_fix} {img_mov} -it {regout_affine} '
-
-            if reference_image != '':
-                def_cmd = f'{def_cmd} -rf {reference_image} '
 
             def_cmd = f'{def_cmd} \
                 -m {metric_spec} \
@@ -81,9 +75,6 @@ class GreedyHelper:
             if regout_deform_inv != '':
                 if affine_init != '':
                     cmd = f'{cmdbase} -i {img_fix} {img_mov} '
-
-                    if reference_image != '':
-                        cmd = f'{cmd} -rf {reference_image} '
                     
                     cmd = f'{cmd} -m {metric_spec} \
                         -n {multi_res_schedule} \
@@ -121,7 +112,7 @@ class GreedyHelper:
         if threads > 0:
             cmdbase = cmdbase + f'-threads {threads} '
 
-        cmd = f'{cmdbase} -d 3 \
+        cmd = f'{cmdbase} \
             -rf {img_fix} \
             -r {reg_deform} {reg_affine} '
         
