@@ -282,27 +282,32 @@ class Propagator:
         fref = self._fref
         ref_ind = self._targetFrames.index(fref)
 
+        # perform image reading
+        image = None
+            
+        # parse image type
+        if self._fnimg.lower().endswith('.dcm'):
+            print('Reading dicom image...')
+            # Use the Dicom4D reader to create an Image4D object
+            image = Image4D(self._fnimg, 'dicom')
+            perflog['Dicom Loading'] = time.time() - timepoint
+        elif self._fnimg.lower().endswith(('.nii.gz', '.nii')):
+            print('Reading NIfTI image...')
+            image = Image4D(self._fnimg, 'nifti')
+            # Use the NIfTI reader to create an Image4D object
+            perflog['NIfTI Loading'] = time.time() - timepoint
+        else:
+            print('Unknown image file type')
+            return
+        
+        self._outputTPWidth = 2
+        if image.NumberOfTimePoints() >= 100 and image.NumberOfTimePoints < 1000:
+            self._outputTPWidth = 3
+        elif image.NumberOfTimePoints() >= 1000:
+            self._outputTPWidth = 4 # impossible but just to be safe
 
+        # only run registration in full mode
         if not meshWarpingMode:
-            image = None
-            
-            # parse image type
-            if self._fnimg.lower().endswith('.dcm'):
-                print('Reading dicom image...')
-                # Use the Dicom4D reader to create an Image4D object
-                image = Image4D(self._fnimg, 'dicom')
-                perflog['Dicom Loading'] = time.time() - timepoint
-            elif self._fnimg.lower().endswith(('.nii.gz', '.nii')):
-                print('Reading NIfTI image...')
-                image = Image4D(self._fnimg, 'nifti')
-                # Use the NIfTI reader to create an Image4D object
-                perflog['NIfTI Loading'] = time.time() - timepoint
-            else:
-                print('Unknown image file type')
-                return
-
-            
-
             # Process reference segmentation
             # - Dilate the reference segmentation (mask)
             fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}_srs.nii.gz')
@@ -318,6 +323,12 @@ class Propagator:
             print("Creating mask mesh...")
             print(cmd)
             os.system(cmd)
+
+            # copy mesh for ref seg to mesh output
+            fn_out_ref_vtk = os.path.join(meshdir,
+             f'seg_{self._tag}_{self.GetOutputTPString(self._fref)}.vtk')
+            copyfile(fn_mask_ref_vtk, fn_out_ref_vtk)
+            
 
             # - add mesh to the meshWarpingList
             #   always smooth reference mesh
@@ -423,9 +434,7 @@ class Propagator:
             print('---------------------------------')
             print('Propagating in Full Resolution: ')
             print('---------------------------------\r')
-
-        # create a 4d segmentation builder
-        if not meshWarpingMode:
+            # create a 4d segmentation builder
             seg4d_builder = Stack3D()
             seg4d_builder.SetReferenceImage(self._fnimg)
             seg4d_builder.SetReferenceSegmentation(self._fref, self._fnsegref)
@@ -466,7 +475,8 @@ class Propagator:
             #print("affine_warps_pts: ", affine_warps_pts)
 
             # output file location
-            fn_seg_reslice = os.path.join(self._outdir, f'seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz')
+            fn_seg_reslice = os.path.join(self._outdir,
+             f'seg_{self.GetOutputTPString(fref)}_to_{self.GetOutputTPString(fCrnt)}_{tag}_reslice.nii.gz')
 
             # transformation filenames
             fn_regout_deform = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}.nii.gz')
@@ -527,7 +537,11 @@ class Propagator:
                 meshItem = self._meshWarpingList[id]
                 print(f'Mesh Warping {meshItem._filename}')
 
-                fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{fCrnt}.vtk')
+                idSuffix = "_"
+                if id == "":
+                    idSuffix = "" # to avoid double "_" in the filename for original seg mesh
+
+                fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}{idSuffix}{self.GetOutputTPString(fCrnt)}.vtk')
                 print(f'Output mesh filename: {fn_seg_reslice_vtk}')
 
 
@@ -566,7 +580,7 @@ class Propagator:
             meshItem = self._meshWarpingList[id]
 
             # Target file name
-            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
+            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self.GetOutputTPString(self._fref)}.vtk')
 
             # If mesh is flagged to be smoothed, smooth and export the mesh to the folder
             #   otherwise just copy the mesh without smoothing
@@ -660,6 +674,15 @@ class Propagator:
             img_reslice = fn_mask_init_reslice_vtk,
             reg_affine = warp_str_array[crnt_ind]
         )
+
+    
+    def GetOutputTPString(self, tp):
+        if self._outputTPWidth <= 2:
+            return f'{tp:02d}'
+        elif self._outputTPWidth == 3:
+            return f'{tp:03d}'
+        else:
+            return f'{tp:04d}'
 
 class VTKHelper:
     @staticmethod
