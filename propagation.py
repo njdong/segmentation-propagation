@@ -65,7 +65,7 @@ def main():
         for mesh_input in args.add_mesh:
             p.AddMeshToWarp(mesh_input[0], mesh_input[1], True)
 
-    p.Run(MeshWarpOnly=args.warp_only)
+    p.Run(warpOnly=args.warp_only)
 
 
 if (__name__ == "__main__"):

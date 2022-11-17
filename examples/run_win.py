@@ -64,4 +64,4 @@ p.SetSmoothingPassband(0.05)
     - By default MeshWarpOnly is False, meaning propagator will run with full registration
       and mesh warping
 """
-p.Run(MeshWarpOnly = False)
+p.Run(warpOnly = False)

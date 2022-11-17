@@ -66,4 +66,4 @@ p.SetUseAffineJitter(False); # remove randomness
     - By default MeshWarpOnly is False, meaning propagator will run with full registration
       and mesh warping
 """
-p.Run(MeshWarpOnly = onlyWarpMesh)
+p.Run(warpOnly = onlyWarpMesh)
