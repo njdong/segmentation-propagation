@@ -301,7 +301,7 @@ class Propagator:
             return
         
         self._outputTPWidth = 2
-        if image.NumberOfTimePoints() >= 100 and image.NumberOfTimePoints < 1000:
+        if image.NumberOfTimePoints() >= 100 and image.NumberOfTimePoints() < 1000:
             self._outputTPWidth = 3
         elif image.NumberOfTimePoints() >= 1000:
             self._outputTPWidth = 4 # impossible but just to be safe
