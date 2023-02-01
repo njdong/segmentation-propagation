@@ -194,10 +194,10 @@ class Propagator:
 
         return self._meshWarpingList
 
-    def Run(self, MeshWarpOnly = False):
-        self.__propagate(MeshWarpOnly)
+    def Run(self, warpOnly = False):
+        self.__propagate(warpOnly)
         print('\r')
-        if MeshWarpOnly:
+        if warpOnly:
             print('Mesh Warping Completed!')
         else:
             print('Propagation Completed!')
@@ -206,7 +206,7 @@ class Propagator:
         # todo: replace the placeholder
         self._targetFrames = []
 
-    def __propagate(self, meshWarpingMode = False):
+    def __propagate(self, warpOnlyMode = False):
         #__propagate(fnimg, outdir = "", tag = "", seg_ref = "", self._targetFrames = [], fref = 0)
 
         """
@@ -234,10 +234,10 @@ class Propagator:
         - Extract and dialate 3D frame from the 4D image
 
         """
-        # Validate files for the meshWarpingMode
-        if meshWarpingMode:       
+        # Validate files for the warpOnlyMode
+        if warpOnlyMode:       
             print('==================================================')
-            print('Propagation is running in Mesh Warping Mode!')
+            print('Propagation is running in Warp-Only Mode!')
             print('==================================================')
             
 
@@ -282,27 +282,32 @@ class Propagator:
         fref = self._fref
         ref_ind = self._targetFrames.index(fref)
 
-
-        if not meshWarpingMode:
-            image = None
+        # perform image reading
+        image = None
             
-            # parse image type
-            if self._fnimg.lower().endswith('.dcm'):
-                print('Reading dicom image...')
-                # Use the Dicom4D reader to create an Image4D object
-                image = Image4D(self._fnimg, 'dicom')
-                perflog['Dicom Loading'] = time.time() - timepoint
-            elif self._fnimg.lower().endswith(('.nii.gz', '.nii')):
-                print('Reading NIfTI image...')
-                image = Image4D(self._fnimg, 'nifti')
-                # Use the NIfTI reader to create an Image4D object
-                perflog['NIfTI Loading'] = time.time() - timepoint
-            else:
-                print('Unknown image file type')
-                return
+        # parse image type
+        if self._fnimg.lower().endswith('.dcm'):
+            print('Reading dicom image...')
+            # Use the Dicom4D reader to create an Image4D object
+            image = Image4D(self._fnimg, 'dicom')
+            perflog['Dicom Loading'] = time.time() - timepoint
+        elif self._fnimg.lower().endswith(('.nii.gz', '.nii')):
+            print('Reading NIfTI image...')
+            image = Image4D(self._fnimg, 'nifti')
+            # Use the NIfTI reader to create an Image4D object
+            perflog['NIfTI Loading'] = time.time() - timepoint
+        else:
+            print('Unknown image file type')
+            return
+        
+        self._outputTPWidth = 2
+        if image.NumberOfTimePoints() >= 100 and image.NumberOfTimePoints() < 1000:
+            self._outputTPWidth = 3
+        elif image.NumberOfTimePoints() >= 1000:
+            self._outputTPWidth = 4 # impossible but just to be safe
 
-            
-
+        # only run registration in full mode
+        if not warpOnlyMode:
             # Process reference segmentation
             # - Dilate the reference segmentation (mask)
             fn_mask_ref_srs = os.path.join(tmpdir, f'mask_{self._fref}_{self._tag}_srs.nii.gz')
@@ -318,6 +323,12 @@ class Propagator:
             print("Creating mask mesh...")
             print(cmd)
             os.system(cmd)
+
+            # copy mesh for ref seg to mesh output
+            fn_out_ref_vtk = os.path.join(meshdir,
+             f'seg_{self._tag}_{self.GetOutputTPString(self._fref)}.vtk')
+            copyfile(fn_mask_ref_vtk, fn_out_ref_vtk)
+            
 
             # - add mesh to the meshWarpingList
             #   always smooth reference mesh
@@ -419,17 +430,16 @@ class Propagator:
             timepoint = time.time()
 
         # Propagate in Full Resolution
-        if not meshWarpingMode:
+        if not warpOnlyMode:
             print('---------------------------------')
             print('Propagating in Full Resolution: ')
             print('---------------------------------\r')
 
         # create a 4d segmentation builder
-        if not meshWarpingMode:
-            seg4d_builder = Stack3D()
-            seg4d_builder.SetReferenceImage(self._fnimg)
-            seg4d_builder.SetReferenceSegmentation(self._fref, self._fnsegref)
-            seg4d_builder.SetTag(self._tag)
+        seg4d_builder = Stack3D()
+        seg4d_builder.SetReferenceImage(self._fnimg)
+        seg4d_builder.SetReferenceSegmentation(self._fref, self._fnsegref)
+        seg4d_builder.SetTag(self._tag)
 
         for i in range(0, len(self._targetFrames)):
             fCrnt = self._targetFrames[i]
@@ -466,13 +476,22 @@ class Propagator:
             #print("affine_warps_pts: ", affine_warps_pts)
 
             # output file location
-            fn_seg_reslice = os.path.join(self._outdir, f'seg_{fref}_to_{fCrnt}_{tag}_reslice.nii.gz')
+            ## if warp-only mode is turned on, export resliced segmentation to extra_warp folder
+            dir_seg_out = self._outdir
+            if warpOnlyMode:
+                dir_seg_out = os.path.join(self._outdir, "extra_warp")
+                if not os.path.exists(dir_seg_out):
+                    os.mkdir(dir_seg_out)
+
+
+            fn_seg_reslice = os.path.join(dir_seg_out,
+             f'seg_{self.GetOutputTPString(fref)}_to_{self.GetOutputTPString(fCrnt)}_{tag}_reslice.nii.gz')
 
             # transformation filenames
             fn_regout_deform = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}.nii.gz')
             fn_regout_deform_inv = os.path.join(tmpdir, f'warp_{fref}_to_{fCrnt}_inv.nii.gz')
 
-            if not meshWarpingMode:
+            if not warpOnlyMode:
                 # full resolution mask for this frame
                 mask_fix_srs = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_srs_reslice_init.nii.gz')
                 mask_fix = os.path.join(tmpdir, f'mask_{fPrev}_to_{fCrnt}_{tag}_reslice_init.nii.gz')
@@ -503,20 +522,22 @@ class Propagator:
                 )
 
                 perflog[f'Full Res Frame {fCrnt} - Registration'] = time.time() - timepoint1
-                timepoint1 = time.time()
 
-                print('Applying warp to segmentation...')
-                self._greedy.apply_warp(
-                    image_type = 'label',
-                    img_fix = fn_img_fix,
-                    img_mov = self._fnsegref,
-                    img_reslice = fn_seg_reslice,
-                    reg_affine = affine_warps,
-                    reg_deform = fn_regout_deform
-                )
-                perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
+            
 
-                seg4d_builder.AddSegmentation(fCrnt, fn_seg_reslice) # add segmentation to 4d builder
+            print('Applying warp to segmentation...')
+            timepoint1 = time.time()
+            self._greedy.apply_warp(
+                image_type = 'label',
+                img_fix = fn_img_fix,
+                img_mov = self._fnsegref,
+                img_reslice = fn_seg_reslice,
+                reg_affine = affine_warps,
+                reg_deform = fn_regout_deform
+            )
+            perflog[f'Full Res Frame {fCrnt} - Label Warp'] = time.time() - timepoint1
+
+            seg4d_builder.AddSegmentation(fCrnt, fn_seg_reslice) # add segmentation to 4d builder
 
             timepoint1 = time.time()
 
@@ -527,7 +548,11 @@ class Propagator:
                 meshItem = self._meshWarpingList[id]
                 print(f'Mesh Warping {meshItem._filename}')
 
-                fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{fCrnt}.vtk')
+                idSuffix = "_"
+                if id == "":
+                    idSuffix = "" # to avoid double "_" in the filename for original seg mesh
+
+                fn_seg_reslice_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}{idSuffix}{self.GetOutputTPString(fCrnt)}.vtk')
                 print(f'Output mesh filename: {fn_seg_reslice_vtk}')
 
 
@@ -550,9 +575,12 @@ class Propagator:
             perflog[f'Full Res Frame {fCrnt} - Mesh Warp'] = time.time() - timepoint1
 
         # write out 4d segmentation
-        if not meshWarpingMode:
+        if not warpOnlyMode:
             seg4d_builder.SetOutputDir(self._outdir)
-            seg4d_builder.Write()
+        else:
+            seg4d_builder.SetOutputDir(dir_seg_out)
+
+        seg4d_builder.Write()
 
         # Processing reference mesh
         #   In the loop above only warped meshes (in target frames) are processed
@@ -560,13 +588,13 @@ class Propagator:
         for id in self._meshWarpingList:
             # In mesh warping mode don't double smooth original reference mesh
             #   because original refernce mesh has already been smoothed during full mode run
-            if meshWarpingMode and id == '':
+            if warpOnlyMode and id == '':
                 continue
 
             meshItem = self._meshWarpingList[id]
 
             # Target file name
-            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self._fref}.vtk')
+            fn_seg_ref_vtk = os.path.join(meshdir, f'seg_{self._tag}_{id}_{self.GetOutputTPString(self._fref)}.vtk')
 
             # If mesh is flagged to be smoothed, smooth and export the mesh to the folder
             #   otherwise just copy the mesh without smoothing
@@ -660,6 +688,15 @@ class Propagator:
             img_reslice = fn_mask_init_reslice_vtk,
             reg_affine = warp_str_array[crnt_ind]
         )
+
+    
+    def GetOutputTPString(self, tp):
+        if self._outputTPWidth <= 2:
+            return f'{tp:02d}'
+        elif self._outputTPWidth == 3:
+            return f'{tp:03d}'
+        else:
+            return f'{tp:04d}'
 
 class VTKHelper:
     @staticmethod

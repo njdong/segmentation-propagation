@@ -169,6 +169,9 @@ class Image4D:
         # Save image to the file
         nib.save(img, outfn)
 
+    def NumberOfTimePoints(self):
+        return self.Data.dimT
+
 
     def printInfo (self):
         print("Class: Dicom4DReader")

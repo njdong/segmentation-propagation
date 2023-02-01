@@ -46,7 +46,7 @@ config=$3
 outdir=$4
 
 # parse the file list and run foreach tag
-while IFS="," read -r tag img seg tpr tpt
+while IFS="," read -r tag img seg tpr tpt extra_mesh flag_warp_only 
 do
   echo $section_marker
   echo "$prefix    Starting run for tag: $tag"
@@ -55,6 +55,21 @@ do
   echo "$prefix -- Segmentation: $seg"
   echo "$prefix -- Reference TP: $tpr"
   echo "$prefix -- Target TPs: $tpt"
+
+  warp_only=""
+
+  if [ "$flag_warp_only" = "Y" ] ; then
+    echo "$prefix -- warp_only mode is on"
+    warp_only="-warp_only"
+  fi
+
+  extra_mesh_cmd=""
+
+  if [ "$extra_mesh" = "" ]; then
+    :
+  else
+    extra_mesh_cmd="-add_mesh extra_warp $extra_mesh"
+  fi
 
   # create a tag specific output folder
   tagout="$outdir/$tag"
@@ -77,7 +92,10 @@ do
   $tpr \
   $tpt \
   "$tagout" \
-  "$config" &> $log
+  "$config" \
+  $extra_mesh_cmd \
+  $warp_only \
+  &> $log
 
   echo "$prefix -- Propagation completed! Return code: $?"
   
