@@ -1,7 +1,7 @@
 {
-    "greedyLocation": "/Users/jileihao/dev/greedy-dev/build-release-dynamic/greedy",
-    "c3dLocation": "/Users/jileihao/dev/c3d-dev/build-release-dynamic/c3d",
-    "vtklevelsetLocation": "/Users/jileihao/dev/cmrep-dev/build-release-dynamic/vtklevelset",
+    "greedyLocation": "C:\Users\ningj\OneDrive\Desktop\PICSL\greedy-1.3.0-alpha-win64-AMD64\bin\greedy.exe"",
+    "c3dLocation": "C:\Users\ningj\OneDrive\Desktop\PICSL\Convert3D\bin\c3d.exe",
+    "vtklevelsetLocation": "C:\Users\ningj\OneDrive\Desktop\PICSL\cmrep-1.0.0-Darwin-x86_64\bin\vtklevelset",
     "downSampledIteration": "50x50",
     "fullResIteration": "50x50",
     "meshSmoothingNumberOfIterations": 35,
